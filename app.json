@@ -1,25 +1,62 @@
 {
   "expo": {
-    "name": "ElderLinkMobile",
-    "slug": "ElderLinkMobile",
+    "name": "ElderLink",
+    "slug": "elderlink-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "elderlink",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.elderlink.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "ElderLink uses your location during active bookings.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Providers share location with families during active outings.",
+        "NSCameraUsageDescription": "Upload photos for service reports and profile verification.",
+        "NSPhotoLibraryUsageDescription": "Select photos for service reports."
+      }
     },
     "android": {
+      "package": "com.elderlink.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#006FFD",
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#006FFD",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow ElderLink to use your location."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
