@@ -1,41 +1,62 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
 
-# Expo
+# ── Environment & secrets ─────────────────────────────────────────────────────
+# Ignore ALL .env variants; only .example templates are safe to commit.
+.env
+.env.*
+!.env*.example
+
+# Catch-all for any secrets or credentials folders
+secrets/
+credentials/
+
+# ── Firebase / Google Services (contain API keys) ─────────────────────────────
+google-services.json
+GoogleService-Info.plist
+
+# ── Expo ──────────────────────────────────────────────────────────────────────
 .expo/
 dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# ── EAS (Expo Application Services) ──────────────────────────────────────────
+# eas.json itself is fine; build credentials are not
+eas-credentials.json
+.eas/
+
+# ── Native build artefacts ────────────────────────────────────────────────────
 .kotlin/
+/ios/
+/android/
+
+# ── Code-signing & certificates ───────────────────────────────────────────────
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
+*.cer
+*.pem
 *.mobileprovision
+*.provisionprofile
 
-# Metro
+# ── Metro bundler ─────────────────────────────────────────────────────────────
 .metro-health-check*
 
-# debug
+# ── Logs & debug ──────────────────────────────────────────────────────────────
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
-# macOS
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
-*.pem
+.AppleDouble
+.LSOverride
 
-# local env files
-.env*.local
-
-# typescript
+# ── TypeScript ────────────────────────────────────────────────────────────────
 *.tsbuildinfo
-
-# generated native folders
-/ios
-/android
