@@ -2,7 +2,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingsApi } from "@/src/api/bookings";
@@ -56,12 +56,14 @@ export default function NewBookingScreen() {
   const { data: parents, isLoading: loadingParents } = useQuery({
     queryKey: ["parents"],
     queryFn: () => parentsApi.list().then((r) => r.data.data),
-    onSuccess: (data) => {
-      if (data.length === 1 && !selectedParentId) {
-        setSelectedParentId(data[0].id);
-      }
-    },
   });
+
+  // Auto-select the only parent profile — onSuccess removed in React Query v5
+  useEffect(() => {
+    if (parents?.length === 1 && !selectedParentId) {
+      setSelectedParentId(parents[0].id);
+    }
+  }, [parents]);
 
   const { data: services } = useQuery({
     queryKey: ["services"],
