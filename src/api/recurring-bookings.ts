@@ -10,25 +10,17 @@ export interface CreateRecurringBookingInput {
   timeOfDay: string;
   startDate: string;
   endDate?: string;
-  amountInPaise: number;
 }
 
 export const recurringBookingsApi = {
   list: () =>
-    api.get<{ data: RecurringBooking[] }>("/api/family/recurring-bookings"),
-
-  get: (id: string) =>
-    api.get<{ data: RecurringBooking }>(`/api/family/recurring-bookings/${id}`),
+    api.get<{ data: RecurringBooking[] }>("/api/family/recurring"),
 
   create: (input: CreateRecurringBookingInput) =>
-    api.post<{ data: RecurringBooking }>("/api/family/recurring-bookings", input),
+    api.post<{ data: RecurringBooking; generated: number }>("/api/family/recurring", input),
 
-  pause: (id: string) =>
-    api.patch<{ data: RecurringBooking }>(`/api/family/recurring-bookings/${id}`, { active: false }),
-
-  resume: (id: string) =>
-    api.patch<{ data: RecurringBooking }>(`/api/family/recurring-bookings/${id}`, { active: true }),
-
+  // The backend only supports a one-way cancel (active -> false); there is
+  // no pause/resume/get-by-id endpoint.
   cancel: (id: string) =>
-    api.delete(`/api/family/recurring-bookings/${id}`),
+    api.patch<{ data: RecurringBooking }>(`/api/family/recurring/${id}`),
 };

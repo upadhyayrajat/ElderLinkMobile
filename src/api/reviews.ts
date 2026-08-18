@@ -2,16 +2,16 @@ import { api } from "./client";
 import type { Review } from "@/src/types";
 
 export interface CreateReviewInput {
-  bookingId: string;
-  revieweeUserId: string;
   rating: number;
   comment?: string;
 }
 
 export const reviewsApi = {
-  create: (input: CreateReviewInput) =>
-    api.post<{ data: Review }>("/api/reviews", input),
+  // Family user rates the provider after a completed booking.
+  createFamilyReview: (bookingId: string, input: CreateReviewInput) =>
+    api.post<{ data: Review }>(`/api/family/bookings/${bookingId}/review`, input),
 
-  getForBooking: (bookingId: string) =>
-    api.get<{ data: Review[] }>(`/api/reviews?bookingId=${bookingId}`),
+  // Provider rates the family user after a completed booking.
+  createProviderReview: (bookingId: string, input: CreateReviewInput) =>
+    api.post<{ data: Review }>(`/api/provider/bookings/${bookingId}/review`, input),
 };

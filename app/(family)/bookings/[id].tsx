@@ -1,12 +1,19 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingsApi } from "@/src/api/bookings";
+import { serviceReportsApi } from "@/src/api/service-reports";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, User, DollarSign } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart } from "lucide-react-native";
+
+const MOOD_LABEL: Record<string, { label: string; color: string }> = {
+  happy: { label: "Happy", color: "#10B981" },
+  neutral: { label: "Neutral", color: "#F59E0B" },
+  sad: { label: "Sad", color: "#EF4444" },
+};
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending:     "#F59E0B",
@@ -63,6 +70,12 @@ export default function BookingDetailScreen() {
     queryKey: ["booking", id],
     queryFn: () => bookingsApi.get(id).then((r) => r.data.data),
     enabled: !!id,
+  });
+
+  const { data: report } = useQuery({
+    queryKey: ["service-report", id],
+    queryFn: () => serviceReportsApi.getForBooking(id).then((r) => r.data.data),
+    enabled: !!id && booking?.status === "completed",
   });
 
   const cancelMutation = useMutation({
@@ -163,6 +176,40 @@ export default function BookingDetailScreen() {
         </View>
       ) : null}
 
+      {/* Visit report */}
+      {report && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Visit Report</Text>
+          <InfoRow
+            icon={<Heart size={16} color={MOOD_LABEL[report.elderMood]?.color ?? "#6B7280"} />}
+            label="Elder's mood"
+            value={MOOD_LABEL[report.elderMood]?.label ?? report.elderMood}
+          />
+          <Text style={styles.reportSummary}>{report.summary}</Text>
+          {report.vitalsNoted ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.infoLabel}>Vitals noted</Text>
+              <Text style={styles.reportSummary}>{report.vitalsNoted}</Text>
+            </>
+          ) : null}
+          {report.followUpRecommended && (
+            <View style={styles.followUpBanner}>
+              <Text style={styles.followUpBannerText}>
+                Follow-up recommended{report.followUpNotes ? `: ${report.followUpNotes}` : ""}
+              </Text>
+            </View>
+          )}
+          {report.photoUrls.length > 0 && (
+            <ScrollView horizontal style={styles.photoScroll} showsHorizontalScrollIndicator={false}>
+              {report.photoUrls.map((url) => (
+                <Image key={url} source={{ uri: url }} style={styles.reportPhoto} />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
       {/* Cancel button */}
       {canCancel && (
         <TouchableOpacity
@@ -206,4 +253,9 @@ const styles = StyleSheet.create({
   cancelBtn: { marginTop: 8, borderWidth: 1.5, borderColor: "#EF4444", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   btnDisabled: { opacity: 0.5 },
   cancelBtnText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },
+  reportSummary: { fontSize: 14, color: "#374151", lineHeight: 20, marginTop: 4 },
+  followUpBanner: { backgroundColor: "#FEF3C7", borderRadius: 10, padding: 12, marginTop: 12 },
+  followUpBannerText: { fontSize: 13, color: "#92400E", fontWeight: "600" },
+  photoScroll: { marginTop: 14 },
+  reportPhoto: { width: 88, height: 88, borderRadius: 10, marginRight: 8, backgroundColor: "#F3F4F6" },
 });

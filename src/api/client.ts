@@ -26,7 +26,10 @@ api.interceptors.request.use(async (config) => {
 
 // Response interceptor — handle 401 with silent refresh
 let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+let refreshQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
 
 api.interceptors.response.use(
   (res) => res,
@@ -40,10 +43,13 @@ api.interceptors.response.use(
     originalRequest._retried = true;
 
     if (isRefreshing) {
-      return new Promise((resolve) => {
-        refreshQueue.push((newToken) => {
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          resolve(api(originalRequest));
+      return new Promise((resolve, reject) => {
+        refreshQueue.push({
+          resolve: (newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(originalRequest));
+          },
+          reject,
         });
       });
     }
@@ -61,15 +67,18 @@ api.interceptors.response.use(
       const newAccessToken: string = data.accessToken;
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, newAccessToken);
 
-      refreshQueue.forEach((cb) => cb(newAccessToken));
+      refreshQueue.forEach(({ resolve }) => resolve(newAccessToken));
       refreshQueue = [];
 
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return api(originalRequest);
-    } catch {
-      // Refresh failed — clear tokens so the auth store detects the logout
+    } catch (refreshError) {
+      // Refresh failed — clear tokens so the auth store detects the logout,
+      // and reject every request queued behind this refresh so none of them hang forever.
       await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      refreshQueue.forEach(({ reject }) => reject(refreshError));
+      refreshQueue = [];
       return Promise.reject(error);
     } finally {
       isRefreshing = false;

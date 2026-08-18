@@ -1,14 +1,24 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, TextInput, Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
+import * as ImagePicker from "expo-image-picker";
 import { bookingsApi } from "@/src/api/bookings";
+import { serviceReportsApi, type CreateServiceReportInput } from "@/src/api/service-reports";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, DollarSign, MapPin } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, X, CheckCircle2 } from "lucide-react-native";
+
+const MAX_REPORT_PHOTOS = 5;
+type ElderMood = "happy" | "neutral" | "sad";
+const MOOD_OPTIONS: { value: ElderMood; label: string; color: string }[] = [
+  { value: "happy", label: "Happy", color: "#10B981" },
+  { value: "neutral", label: "Neutral", color: "#F59E0B" },
+  { value: "sad", label: "Sad", color: "#EF4444" },
+];
 
 const LOCATION_INTERVAL_MS = 30_000;
 
@@ -84,6 +94,14 @@ export default function JobDetailScreen() {
   const queryClient = useQueryClient();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [elderMood, setElderMood] = useState<ElderMood | null>(null);
+  const [vitalsNoted, setVitalsNoted] = useState("");
+  const [followUpRecommended, setFollowUpRecommended] = useState(false);
+  const [followUpNotes, setFollowUpNotes] = useState("");
+  const [photos, setPhotos] = useState<{ uri: string; name: string; type: string }[]>([]);
+
   const { data: booking, isLoading } = useQuery({
     queryKey: ["provider-booking", id],
     queryFn: () => bookingsApi.listForProvider().then((r) => {
@@ -145,6 +163,63 @@ export default function JobDetailScreen() {
       }
     };
   }, [booking?.status, id]);
+
+  const reportMutation = useMutation({
+    mutationFn: (input: CreateServiceReportInput) => serviceReportsApi.create(input),
+    onSuccess: () => setReportSubmitted(true),
+    onError: (err: any) => {
+      if (err?.response?.status === 409) {
+        // Already submitted (e.g. in a previous session) — nothing more to do here.
+        setReportSubmitted(true);
+        return;
+      }
+      const msg = err?.response?.data?.error ?? "Could not submit the report. Please try again.";
+      Alert.alert("Error", msg);
+    },
+  });
+
+  const pickPhotos = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow photo library access to attach visit photos.");
+      return;
+    }
+    const remaining = MAX_REPORT_PHOTOS - photos.length;
+    if (remaining <= 0) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.6,
+    });
+    if (result.canceled) return;
+    const picked = result.assets.slice(0, remaining).map((a, i) => ({
+      uri: a.uri,
+      name: a.fileName ?? `photo-${Date.now()}-${i}.jpg`,
+      type: a.mimeType ?? "image/jpeg",
+    }));
+    setPhotos((prev) => [...prev, ...picked]);
+  };
+
+  const submitReport = () => {
+    if (summary.trim().length < 10) {
+      Alert.alert("Validation Error", "Please write at least a brief summary (10+ characters).");
+      return;
+    }
+    if (!elderMood) {
+      Alert.alert("Validation Error", "Please select how the elder seemed during the visit.");
+      return;
+    }
+    reportMutation.mutate({
+      bookingId: id,
+      summary: summary.trim(),
+      elderMood,
+      vitalsNoted: vitalsNoted.trim() || undefined,
+      followUpRecommended,
+      followUpNotes: followUpRecommended ? (followUpNotes.trim() || undefined) : undefined,
+      photos,
+    });
+  };
 
   const confirmTransition = (label: string, newStatus: BookingStatus) => {
     Alert.alert(
@@ -290,6 +365,114 @@ export default function JobDetailScreen() {
           />
         )}
       </View>
+
+      {/* Visit report */}
+      {booking.status === "completed" && (
+        reportSubmitted ? (
+          <View style={styles.reportDoneCard}>
+            <CheckCircle2 size={20} color="#10B981" />
+            <Text style={styles.reportDoneText}>Visit report submitted</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Submit Visit Report</Text>
+
+            <Text style={styles.reportLabel}>How did the elder seem? <Text style={styles.required}>*</Text></Text>
+            <View style={styles.moodRow}>
+              {MOOD_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.moodOption,
+                    { borderColor: opt.color + "40" },
+                    elderMood === opt.value && { backgroundColor: opt.color + "20", borderColor: opt.color },
+                  ]}
+                  onPress={() => setElderMood(opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.moodOptionText, elderMood === opt.value && { color: opt.color }]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.reportLabel}>Summary <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.reportTextArea}
+              value={summary}
+              onChangeText={setSummary}
+              placeholder="What did you do during this visit?"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <Text style={styles.reportLabel}>Vitals noted (optional)</Text>
+            <TextInput
+              style={styles.reportInput}
+              value={vitalsNoted}
+              onChangeText={setVitalsNoted}
+              placeholder="e.g. BP looked high, seemed tired"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <TouchableOpacity
+              style={styles.followUpRow}
+              onPress={() => setFollowUpRecommended((v) => !v)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.checkbox, followUpRecommended && styles.checkboxChecked]}>
+                {followUpRecommended && <CheckCircle2 size={14} color="#fff" />}
+              </View>
+              <Text style={styles.followUpLabel}>Recommend a follow-up</Text>
+            </TouchableOpacity>
+
+            {followUpRecommended && (
+              <TextInput
+                style={styles.reportInput}
+                value={followUpNotes}
+                onChangeText={setFollowUpNotes}
+                placeholder="What should the family follow up on?"
+                placeholderTextColor="#9CA3AF"
+              />
+            )}
+
+            <Text style={styles.reportLabel}>Photos (optional, up to {MAX_REPORT_PHOTOS})</Text>
+            <View style={styles.photoRow}>
+              {photos.map((photo, i) => (
+                <View key={photo.uri} style={styles.photoThumbWrap}>
+                  <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
+                  <TouchableOpacity
+                    style={styles.photoRemove}
+                    onPress={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    <X size={12} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {photos.length < MAX_REPORT_PHOTOS && (
+                <TouchableOpacity style={styles.photoAdd} onPress={pickPhotos}>
+                  <Text style={styles.photoAddText}>+ Add</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: "#006FFD", marginTop: 20 }, reportMutation.isPending && styles.btnDisabled]}
+              onPress={submitReport}
+              disabled={reportMutation.isPending}
+              activeOpacity={0.85}
+            >
+              {reportMutation.isPending
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.actionBtnText}>Submit Report</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        )
+      )}
     </ScrollView>
   );
 }
@@ -321,4 +504,24 @@ const styles = StyleSheet.create({
   actions: { gap: 10, marginTop: 8 },
   actionBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
   actionBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  btnDisabled: { opacity: 0.6 },
+  reportDoneCard: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 14, padding: 16 },
+  reportDoneText: { fontSize: 14, fontWeight: "600", color: "#15803D" },
+  reportLabel: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 8, marginTop: 14 },
+  required: { color: "#EF4444" },
+  reportInput: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1A1A2E" },
+  reportTextArea: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1A1A2E", minHeight: 90 },
+  moodRow: { flexDirection: "row", gap: 8 },
+  moodOption: { flex: 1, borderWidth: 1.5, borderRadius: 12, paddingVertical: 10, alignItems: "center" },
+  moodOptionText: { fontSize: 13, fontWeight: "700", color: "#6B7280" },
+  followUpRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: "#D1D5DB", alignItems: "center", justifyContent: "center" },
+  checkboxChecked: { backgroundColor: "#006FFD", borderColor: "#006FFD" },
+  followUpLabel: { fontSize: 14, color: "#374151", fontWeight: "500" },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  photoThumbWrap: { position: "relative" },
+  photoThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  photoRemove: { position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: "#1A1A2E", alignItems: "center", justifyContent: "center" },
+  photoAdd: { width: 64, height: 64, borderRadius: 10, borderWidth: 1.5, borderColor: "#D1D5DB", borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
+  photoAddText: { fontSize: 11, fontWeight: "600", color: "#6B7280" },
 });
