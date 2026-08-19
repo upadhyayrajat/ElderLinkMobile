@@ -6,7 +6,7 @@ audit and reasoning behind priorities, see `ROADMAP.md`.
 
 Legend: ✅ Done & verified · 🚧 Built, not yet verified · ⬜ Not started
 
-Last updated: 2026-08-18
+Last updated: 2026-08-19
 
 ## Testing environment
 
@@ -59,8 +59,25 @@ could have worked past this until it was fixed.
    - Not separately exercised: the 409 double-submit path and the 422
      pre-completion path (code review gives high confidence, but not
      click-tested).
-2. ⬜ **Family sharing** (invite/manage members on a parent profile) — API
-   client fixed, no screens yet.
+2. ✅ **Family sharing** (invite/manage members on a parent profile) — built
+   and **verified end-to-end** 2026-08-19 on the Android emulator against a
+   real local `../ElderLink` + Supabase backend:
+   - `app/(family)/parents/[id].tsx` — added a "Family Access" section
+     (owner-only controls: invite by phone + role, change a member's role,
+     remove a member; read-only list for non-owners).
+   - Logged in as the profile owner (Mayank Goyal) and exercised the full
+     CRUD cycle against real seed data: viewed the pre-existing member
+     (Priyanka Goyal), toggled her role manager → viewer (confirmed via
+     direct DB query), invited a fresh test user (created and then cleaned
+     up afterward) and confirmed she appeared with the correct role,
+     removed her, and confirmed the row was actually deleted from
+     `family_members` via DB query.
+   - Also exercised the 409 duplicate-invite path — inviting an
+     already-member phone number surfaced the exact backend error message
+     ("This person already has access to this profile.") via `Alert.alert`.
+   - Not separately exercised: inviting a phone number with no ElderLink
+     account (404 path) or a non-family role (422 path) — code review gives
+     high confidence, not click-tested.
 3. ⬜ **Reviews** (family ↔ provider two-way rating) — API client fixed, no
    screens yet.
 4. ⬜ **Recurring bookings** — API client fixed, no screens yet.

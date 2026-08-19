@@ -6,9 +6,17 @@ import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { parentsApi, type CreateParentInput } from "@/src/api/parents";
+import { familyMembersApi } from "@/src/api/family-members";
+import { useAuthStore } from "@/src/store/auth";
+import { INDIA_PHONE_REGEX } from "@/src/utils/phone";
+import type { FamilyMemberRole } from "@/src/types";
 import {
   ArrowLeft, Edit2, Save, User, MapPin, Phone, Heart, ShieldAlert,
+  Users, UserPlus, X, Eye, ShieldCheck,
 } from "lucide-react-native";
+
+type InviteRole = Exclude<FamilyMemberRole, "owner">;
+const ROLE_LABEL: Record<InviteRole, string> = { manager: "Manager", viewer: "Viewer" };
 
 function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -66,13 +74,66 @@ export default function ParentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   const [editing, setEditing] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [invitePhone, setInvitePhone] = useState("+91");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("manager");
 
   const { data: parent, isLoading } = useQuery({
     queryKey: ["parent", id],
     queryFn: () => parentsApi.get(id).then((r) => r.data.data),
     enabled: !!id,
   });
+
+  const isOwner = !!user && !!parent && parent.familyUserId === user.id;
+
+  const { data: membersData } = useQuery({
+    queryKey: ["family-members", id],
+    queryFn: () => familyMembersApi.list(id).then((r) => r.data.data),
+    enabled: !!id,
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: () => familyMembersApi.invite({ parentProfileId: id, phone: invitePhone, role: inviteRole }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["family-members", id] });
+      setShowInvite(false);
+      setInvitePhone("+91");
+      setInviteRole("manager");
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err?.response?.data?.error ?? "Could not send the invite. Please try again.");
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: InviteRole }) =>
+      familyMembersApi.updateRole(id, memberId, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["family-members", id] }),
+    onError: () => Alert.alert("Error", "Could not update the member's role. Please try again."),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (memberId: string) => familyMembersApi.remove(id, memberId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["family-members", id] }),
+    onError: () => Alert.alert("Error", "Could not remove this member. Please try again."),
+  });
+
+  const handleInvite = () => {
+    if (!INDIA_PHONE_REGEX.test(invitePhone)) {
+      Alert.alert("Validation Error", "Enter a valid Indian mobile number: +91XXXXXXXXXX");
+      return;
+    }
+    inviteMutation.mutate();
+  };
+
+  const handleRemove = (memberId: string, name: string) => {
+    Alert.alert("Remove access?", `${name} will no longer be able to see this profile.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => removeMutation.mutate(memberId) },
+    ]);
+  };
 
   // Edit form state — synced from parent on mount / parent change
   const [name, setName] = useState("");
@@ -220,6 +281,122 @@ export default function ParentDetailScreen() {
               <InfoRow icon={<ShieldAlert size={15} color="#EF4444" />} label="Name" value={parent.emergencyContactName} />
               <InfoRow icon={<Phone size={15} color="#EF4444" />} label="Phone" value={parent.emergencyContactPhone} />
             </InfoSection>
+
+            {/* Family sharing */}
+            <View style={styles.section}>
+              <View style={styles.membersHeader}>
+                <Text style={styles.sectionTitle}>Family Access</Text>
+                {isOwner && (
+                  <TouchableOpacity onPress={() => setShowInvite((v) => !v)} style={styles.inviteToggle}>
+                    <UserPlus size={15} color="#006FFD" />
+                    <Text style={styles.inviteToggleText}>Invite</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {membersData?.owner && (
+                <View style={styles.memberRow}>
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberAvatarText}>{membersData.owner.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberName}>{membersData.owner.name}</Text>
+                    <Text style={styles.memberPhone}>{membersData.owner.phone}</Text>
+                  </View>
+                  <View style={styles.roleBadge}>
+                    <Text style={styles.roleBadgeText}>Owner</Text>
+                  </View>
+                </View>
+              )}
+
+              {(membersData?.members ?? []).map((m) => (
+                <View key={m.id} style={styles.memberRow}>
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberAvatarText}>{m.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.memberName}>{m.name}</Text>
+                    <Text style={styles.memberPhone}>{m.phone}</Text>
+                  </View>
+                  {isOwner ? (
+                    <View style={styles.memberActions}>
+                      <TouchableOpacity
+                        onPress={() => updateRoleMutation.mutate({
+                          memberId: m.id,
+                          role: m.role === "manager" ? "viewer" : "manager",
+                        })}
+                        style={styles.roleToggle}
+                      >
+                        {m.role === "manager"
+                          ? <ShieldCheck size={13} color="#006FFD" />
+                          : <Eye size={13} color="#6B7280" />
+                        }
+                        <Text style={styles.roleToggleText}>{ROLE_LABEL[m.role as InviteRole]}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleRemove(m.id, m.name)} style={styles.removeBtn}>
+                        <X size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.roleBadge}>
+                      <Text style={styles.roleBadgeText}>{ROLE_LABEL[m.role as InviteRole]}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+
+              {isOwner && (membersData?.members ?? []).length === 0 && !showInvite && (
+                <View style={styles.emptyMembers}>
+                  <Users size={18} color="#9CA3AF" />
+                  <Text style={styles.emptyMembersText}>
+                    Only you can see this profile. Invite family to share access.
+                  </Text>
+                </View>
+              )}
+
+              {isOwner && showInvite && (
+                <View style={styles.inviteForm}>
+                  <Field
+                    label="Mobile number"
+                    value={invitePhone}
+                    onChangeText={setInvitePhone}
+                    placeholder="+91XXXXXXXXXX"
+                    keyboardType="phone-pad"
+                    maxLength={13}
+                    hint="They must already have an ElderLink account."
+                  />
+                  <Text style={styles.fieldLabel}>Role</Text>
+                  <View style={styles.roleOptions}>
+                    {(["manager", "viewer"] as InviteRole[]).map((r) => (
+                      <TouchableOpacity
+                        key={r}
+                        style={[styles.roleOption, inviteRole === r && styles.roleOptionSelected]}
+                        onPress={() => setInviteRole(r)}
+                      >
+                        <Text style={[styles.roleOptionText, inviteRole === r && styles.roleOptionTextSelected]}>
+                          {ROLE_LABEL[r]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.roleHint}>
+                    {inviteRole === "manager"
+                      ? "Can book services and view everything."
+                      : "Can view bookings and reports, but can't book."}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.sendInviteBtn, inviteMutation.isPending && { opacity: 0.6 }]}
+                    onPress={handleInvite}
+                    disabled={inviteMutation.isPending}
+                  >
+                    {inviteMutation.isPending
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={styles.sendInviteBtnText}>Send Invite</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </>
         )}
 
@@ -319,4 +496,30 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 15, fontWeight: "600", color: "#374151" },
   saveBtn: { flex: 2, backgroundColor: "#006FFD", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
   saveBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+
+  membersHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 6 },
+  inviteToggle: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EEF4FF", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  inviteToggleText: { fontSize: 13, fontWeight: "700", color: "#006FFD" },
+  memberRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F3F4F6", justifyContent: "center", alignItems: "center" },
+  memberAvatarText: { fontSize: 14, fontWeight: "700", color: "#6B7280" },
+  memberName: { fontSize: 14, fontWeight: "600", color: "#1A1A2E" },
+  memberPhone: { fontSize: 12, color: "#9CA3AF", marginTop: 1 },
+  roleBadge: { backgroundColor: "#F3F4F6", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  roleBadgeText: { fontSize: 11, fontWeight: "700", color: "#6B7280" },
+  memberActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  roleToggle: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F9FAFB", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#E5E7EB" },
+  roleToggleText: { fontSize: 11, fontWeight: "700", color: "#374151" },
+  removeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#FEF2F2", justifyContent: "center", alignItems: "center" },
+  emptyMembers: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
+  emptyMembersText: { flex: 1, fontSize: 13, color: "#9CA3AF" },
+  inviteForm: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
+  roleOptions: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  roleOption: { flex: 1, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingVertical: 10, alignItems: "center" },
+  roleOptionSelected: { borderColor: "#006FFD", backgroundColor: "#EEF4FF" },
+  roleOptionText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
+  roleOptionTextSelected: { color: "#006FFD" },
+  roleHint: { fontSize: 12, color: "#9CA3AF", marginBottom: 16 },
+  sendInviteBtn: { backgroundColor: "#006FFD", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  sendInviteBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });
