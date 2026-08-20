@@ -11,6 +11,7 @@ export interface AuthUser {
   phone: string;
   name: string;
   role: UserRole;
+  consentGiven: boolean;
 }
 
 interface AuthState {
@@ -21,6 +22,7 @@ interface AuthState {
   setSession: (user: AuthUser, accessToken: string, refreshToken: string) => Promise<void>;
   clearSession: () => Promise<void>;
   loadSession: () => Promise<void>;
+  setConsentGiven: (value: boolean) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -57,5 +59,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       // corrupt storage — treat as logged out
     }
     set({ user: null, isLoaded: true });
+  },
+
+  // Called after POST /api/user/consent succeeds, once the access token has
+  // also been refreshed so the new consentGiven claim actually takes effect.
+  setConsentGiven: async (value) => {
+    set((state) => {
+      if (!state.user) return state;
+      const user = { ...state.user, consentGiven: value };
+      SecureStore.setItemAsync("elderlink_user", JSON.stringify(user));
+      return { user };
+    });
   },
 }));

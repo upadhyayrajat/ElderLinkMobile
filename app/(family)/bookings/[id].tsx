@@ -1,13 +1,27 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Image,
+  ActivityIndicator, Alert, Image, TextInput,
 } from "react-native";
+import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingsApi } from "@/src/api/bookings";
 import { serviceReportsApi } from "@/src/api/service-reports";
+import { reviewsApi } from "@/src/api/reviews";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart, Star, CheckCircle2 } from "lucide-react-native";
+
+function StarRating({ rating, onChange }: { rating: number; onChange: (n: number) => void }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <TouchableOpacity key={n} onPress={() => onChange(n)} activeOpacity={0.7}>
+          <Star size={32} color={n <= rating ? "#F59E0B" : "#D1D5DB"} fill={n <= rating ? "#F59E0B" : "transparent"} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 const MOOD_LABEL: Record<string, { label: string; color: string }> = {
   happy: { label: "Happy", color: "#10B981" },
@@ -66,6 +80,10 @@ export default function BookingDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+
   const { data: booking, isLoading } = useQuery({
     queryKey: ["booking", id],
     queryFn: () => bookingsApi.get(id).then((r) => r.data.data),
@@ -86,6 +104,26 @@ export default function BookingDetailScreen() {
     },
     onError: () => Alert.alert("Error", "Could not cancel the booking. Please try again."),
   });
+
+  const reviewMutation = useMutation({
+    mutationFn: () => reviewsApi.createFamilyReview(id, { rating, comment: reviewComment.trim() || undefined }),
+    onSuccess: () => setReviewSubmitted(true),
+    onError: (err: any) => {
+      if (err?.response?.status === 409) {
+        setReviewSubmitted(true);
+        return;
+      }
+      Alert.alert("Error", err?.response?.data?.error ?? "Could not submit your rating. Please try again.");
+    },
+  });
+
+  const submitReview = () => {
+    if (rating < 1) {
+      Alert.alert("Validation Error", "Please select a star rating.");
+      return;
+    }
+    reviewMutation.mutate();
+  };
 
   const handleCancel = () => {
     Alert.alert(
@@ -210,6 +248,40 @@ export default function BookingDetailScreen() {
         </View>
       )}
 
+      {/* Rate provider */}
+      {booking.status === "completed" && (
+        reviewSubmitted ? (
+          <View style={styles.reviewDoneCard}>
+            <CheckCircle2 size={20} color="#10B981" />
+            <Text style={styles.reviewDoneText}>Thanks for your rating!</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Rate Your Provider</Text>
+            <StarRating rating={rating} onChange={setRating} />
+            <TextInput
+              style={styles.reviewInput}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              placeholder="Add a comment (optional)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.submitReviewBtn, reviewMutation.isPending && styles.btnDisabled]}
+              onPress={submitReview}
+              disabled={reviewMutation.isPending}
+              activeOpacity={0.85}
+            >
+              {reviewMutation.isPending
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.submitReviewBtnText}>Submit Rating</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        )
+      )}
+
       {/* Cancel button */}
       {canCancel && (
         <TouchableOpacity
@@ -258,4 +330,9 @@ const styles = StyleSheet.create({
   followUpBannerText: { fontSize: 13, color: "#92400E", fontWeight: "600" },
   photoScroll: { marginTop: 14 },
   reportPhoto: { width: 88, height: 88, borderRadius: 10, marginRight: 8, backgroundColor: "#F3F4F6" },
+  reviewDoneCard: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 14, padding: 16 },
+  reviewDoneText: { fontSize: 14, fontWeight: "600", color: "#15803D" },
+  reviewInput: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1A1A2E", minHeight: 70, marginTop: 16, textAlignVertical: "top" },
+  submitReviewBtn: { backgroundColor: "#006FFD", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 16 },
+  submitReviewBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });

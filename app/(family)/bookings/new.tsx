@@ -40,10 +40,10 @@ function Field({
 }
 
 export default function NewBookingScreen() {
-  const { serviceTypeId, serviceName, providerProfileId } = useLocalSearchParams<{
+  const { serviceTypeId, serviceName, providerUserId } = useLocalSearchParams<{
     serviceTypeId: string;
     serviceName: string;
-    providerProfileId: string;
+    providerUserId: string;
   }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -86,11 +86,9 @@ export default function NewBookingScreen() {
 
       return bookingsApi.create({
         parentProfileId: selectedParentId,
-        providerProfileId,
+        providerUserId,
         serviceTypeId,
         scheduledAt: scheduledAt.toISOString(),
-        durationMinutes: service?.durationMinutes ?? 60,
-        amountInPaise,
         notes: notes.trim() || undefined,
       });
     },
@@ -99,11 +97,8 @@ export default function NewBookingScreen() {
       router.replace(`/(family)/bookings/${res.data.data.id}` as any);
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-          ?? "Failed to create booking. Please try again.";
+      const responseError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      const msg = responseError ?? (err instanceof Error ? err.message : "Failed to create booking. Please try again.");
       Alert.alert("Error", msg);
     },
   });

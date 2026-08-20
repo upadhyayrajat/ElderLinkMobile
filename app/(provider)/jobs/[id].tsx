@@ -9,8 +9,21 @@ import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import { bookingsApi } from "@/src/api/bookings";
 import { serviceReportsApi, type CreateServiceReportInput } from "@/src/api/service-reports";
+import { reviewsApi } from "@/src/api/reviews";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, X, CheckCircle2 } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, X, CheckCircle2, Star } from "lucide-react-native";
+
+function StarRating({ rating, onChange }: { rating: number; onChange: (n: number) => void }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <TouchableOpacity key={n} onPress={() => onChange(n)} activeOpacity={0.7}>
+          <Star size={32} color={n <= rating ? "#F59E0B" : "#D1D5DB"} fill={n <= rating ? "#F59E0B" : "transparent"} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 const MAX_REPORT_PHOTOS = 5;
 type ElderMood = "happy" | "neutral" | "sad";
@@ -93,6 +106,10 @@ export default function JobDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
 
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [summary, setSummary] = useState("");
@@ -219,6 +236,26 @@ export default function JobDetailScreen() {
       followUpNotes: followUpRecommended ? (followUpNotes.trim() || undefined) : undefined,
       photos,
     });
+  };
+
+  const reviewMutation = useMutation({
+    mutationFn: () => reviewsApi.createProviderReview(id, { rating, comment: reviewComment.trim() || undefined }),
+    onSuccess: () => setReviewSubmitted(true),
+    onError: (err: any) => {
+      if (err?.response?.status === 409) {
+        setReviewSubmitted(true);
+        return;
+      }
+      Alert.alert("Error", err?.response?.data?.error ?? "Could not submit your rating. Please try again.");
+    },
+  });
+
+  const submitReview = () => {
+    if (rating < 1) {
+      Alert.alert("Validation Error", "Please select a star rating.");
+      return;
+    }
+    reviewMutation.mutate();
   };
 
   const confirmTransition = (label: string, newStatus: BookingStatus) => {
@@ -468,6 +505,40 @@ export default function JobDetailScreen() {
               {reportMutation.isPending
                 ? <ActivityIndicator color="#fff" size="small" />
                 : <Text style={styles.actionBtnText}>Submit Report</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        )
+      )}
+
+      {/* Rate family */}
+      {booking.status === "completed" && (
+        reviewSubmitted ? (
+          <View style={styles.reportDoneCard}>
+            <CheckCircle2 size={20} color="#10B981" />
+            <Text style={styles.reportDoneText}>Thanks for your rating!</Text>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Rate This Family</Text>
+            <StarRating rating={rating} onChange={setRating} />
+            <TextInput
+              style={[styles.reportInput, { minHeight: 70, marginTop: 16, textAlignVertical: "top" }]}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              placeholder="Add a comment (optional)"
+              placeholderTextColor="#9CA3AF"
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: "#006FFD", marginTop: 16 }, reviewMutation.isPending && styles.btnDisabled]}
+              onPress={submitReview}
+              disabled={reviewMutation.isPending}
+              activeOpacity={0.85}
+            >
+              {reviewMutation.isPending
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.actionBtnText}>Submit Rating</Text>
               }
             </TouchableOpacity>
           </View>

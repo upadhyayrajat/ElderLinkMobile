@@ -3,11 +3,9 @@ import type { Booking, BookingStatus } from "@/src/types";
 
 export interface CreateBookingInput {
   parentProfileId: string;
-  providerProfileId: string;
+  providerUserId: string;
   serviceTypeId: string;
   scheduledAt: string;
-  durationMinutes: number;
-  amountInPaise: number;
   notes?: string;
 }
 

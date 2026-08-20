@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { api } from "@/src/api/client";
 import { useAuthStore } from "@/src/store/auth";
 import { authApi } from "@/src/api/auth";
 
@@ -24,27 +23,8 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      // Register user on the backend
-      const { data: registerData } = await api.post("/api/users/register", {
-        phone,
-        name: name.trim(),
-        role,
-      });
-
-      // The registration endpoint returns { accessToken, refreshToken, user } directly
-      const { accessToken, refreshToken, user } = registerData.data ?? registerData;
-      if (accessToken && refreshToken && user) {
-        await setSession(user, accessToken, refreshToken);
-        // Register push token
-        return;
-      }
-
-      // Fallback: re-verify to get tokens (send a fresh OTP)
-      Alert.alert(
-        "Account created",
-        "Please log in with your phone number.",
-        [{ text: "OK", onPress: () => router.replace("/(auth)/login") }]
-      );
+      const { data } = await authApi.register(phone, name.trim(), role);
+      await setSession(data.user, data.accessToken, data.refreshToken);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Registration failed.";
       Alert.alert("Error", msg);

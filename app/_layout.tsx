@@ -39,10 +39,15 @@ function AuthGate() {
     if (!user && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (user && inAuthGroup) {
-      if (user.role === "provider") {
+      if (user.role !== "provider" && user.role !== "family") {
+        // "company", "admin", or any future role with no mobile experience yet.
+        router.replace("/unsupported-role");
+      } else if (!user.consentGiven) {
+        // DPDP Act 2023 — family/provider users must consent before using the app.
+        // The consent screen itself navigates onward once recorded.
+        router.replace("/consent");
+      } else if (user.role === "provider") {
         router.replace("/(provider)/dashboard");
-      } else if (user.role === "company") {
-        router.replace("/(family)/dashboard"); // company portal TBD
       } else {
         router.replace("/(family)/dashboard");
       }
@@ -54,6 +59,8 @@ function AuthGate() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(family)" />
       <Stack.Screen name="(provider)" />
+      <Stack.Screen name="unsupported-role" />
+      <Stack.Screen name="consent" />
     </Stack>
   );
 }

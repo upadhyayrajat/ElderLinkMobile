@@ -91,7 +91,7 @@ export default function ProviderDetailScreen() {
             params: {
               serviceTypeId,
               serviceName: serviceName ?? "",
-              providerProfileId: provider.id,
+              providerUserId: provider.userId,
             },
           })
         }
