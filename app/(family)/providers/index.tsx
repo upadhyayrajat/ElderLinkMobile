@@ -1,13 +1,15 @@
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, TextInput, Alert,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { providersApi, type ProviderSearchResult } from "@/src/api/providers";
 import { parentsApi } from "@/src/api/parents";
-import { ArrowLeft, Star, Search, ShieldCheck } from "lucide-react-native";
+import { useCities } from "@/src/hooks/useCities";
+import { CityPicker } from "@/src/components/CityPicker";
+import { ArrowLeft, Star, ShieldCheck, MapPin, ChevronDown } from "lucide-react-native";
+import type { City } from "@/src/types";
 
 function ProviderCard({ provider, serviceTypeId, serviceName }: {
   provider: ProviderSearchResult;
@@ -64,36 +66,32 @@ export default function ProviderSearchScreen() {
     serviceName: string;
   }>();
   const router = useRouter();
-  const [city, setCity] = useState("");
-  const [searchCity, setSearchCity] = useState("");
+  const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
 
-  // Pre-fill city from the first parent profile.
   const { data: parents } = useQuery({
     queryKey: ["parents"],
     queryFn: () => parentsApi.list().then((r) => r.data.data),
-    onSuccess: (data) => {
-      if (data.length > 0 && !city) {
-        setCity(data[0].city);
-        setSearchCity(data[0].city);
-      }
-    },
   });
+  const { data: cities } = useCities(true);
 
-  const { data: providers, isLoading, isError, refetch } = useQuery({
-    queryKey: ["providers", serviceTypeId, searchCity],
+  // Pre-fill from the first parent profile's saved city, once both queries
+  // have loaded — only if it matches a real, currently-active city exactly;
+  // otherwise leave the picker unselected rather than searching on a guess.
+  useEffect(() => {
+    if (selectedCity || !parents?.length || !cities?.length) return;
+    const parentCity = parents[0].city?.trim().toLowerCase();
+    if (!parentCity) return;
+    const match = cities.find((c) => c.name.toLowerCase() === parentCity);
+    if (match) setSelectedCity(match);
+  }, [parents, cities, selectedCity]);
+
+  const { data: providers, isLoading, isError } = useQuery({
+    queryKey: ["providers", serviceTypeId, selectedCity?.id],
     queryFn: () =>
-      providersApi.search({ serviceTypeId, city: searchCity }).then((r) => r.data.data),
-    enabled: !!serviceTypeId && !!searchCity,
+      providersApi.search({ serviceTypeId, city: selectedCity!.name }).then((r) => r.data.data),
+    enabled: !!serviceTypeId && !!selectedCity,
   });
-
-  function handleSearch() {
-    const trimmed = city.trim();
-    if (trimmed.length < 2) {
-      Alert.alert("Enter a city", "Please enter the city where your parent lives.");
-      return;
-    }
-    setSearchCity(trimmed);
-  }
 
   return (
     <View style={styles.screen}>
@@ -108,25 +106,18 @@ export default function ProviderSearchScreen() {
         </View>
       </View>
 
-      {/* City search */}
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.cityInput}
-          placeholder="City (e.g. Delhi, Mumbai)"
-          placeholderTextColor="#9CA3AF"
-          value={city}
-          onChangeText={setCity}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-        />
-        <TouchableOpacity style={styles.searchBtn} onPress={handleSearch}>
-          <Search size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      {/* City picker */}
+      <TouchableOpacity style={styles.citySelector} onPress={() => setCityPickerOpen(true)} activeOpacity={0.7}>
+        <MapPin size={18} color="#6B7280" />
+        <Text style={selectedCity ? styles.citySelectorText : styles.citySelectorPlaceholder}>
+          {selectedCity ? selectedCity.name : "Select city"}
+        </Text>
+        <ChevronDown size={18} color="#9CA3AF" />
+      </TouchableOpacity>
 
-      {!searchCity ? (
+      {!selectedCity ? (
         <View style={styles.center}>
-          <Text style={styles.hintText}>Enter your parent's city to see available caregivers.</Text>
+          <Text style={styles.hintText}>Select your parent's city to see available caregivers.</Text>
         </View>
       ) : isLoading ? (
         <ActivityIndicator color="#006FFD" style={{ marginTop: 40 }} />
@@ -136,7 +127,7 @@ export default function ProviderSearchScreen() {
         </View>
       ) : (providers ?? []).length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.hintText}>No verified caregivers found in {searchCity} for this service.</Text>
+          <Text style={styles.hintText}>No verified caregivers found in {selectedCity.name} for this service.</Text>
           <Text style={styles.hintSub}>Try a nearby city or check back later.</Text>
         </View>
       ) : (
@@ -154,6 +145,14 @@ export default function ProviderSearchScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <CityPicker
+        visible={cityPickerOpen}
+        onClose={() => setCityPickerOpen(false)}
+        cities={cities ?? []}
+        selectedCityId={selectedCity?.id}
+        onSelect={setSelectedCity}
+      />
     </View>
   );
 }
@@ -164,15 +163,19 @@ const styles = StyleSheet.create({
   backBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#fff", justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
   pageTitle: { fontSize: 17, fontWeight: "700", color: "#1A1A2E" },
   pageSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 1 },
-  searchRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 16 },
-  cityInput: { flex: 1, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: "#1A1A2E" },
-  searchBtn: { width: 46, height: 46, backgroundColor: "#006FFD", borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  citySelector: {
+    flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 20, marginBottom: 16,
+    backgroundColor: "#fff", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
+  citySelectorText: { flex: 1, fontSize: 15, color: "#1A1A2E" },
+  citySelectorPlaceholder: { flex: 1, fontSize: 15, color: "#9CA3AF" },
   list: { paddingHorizontal: 20, paddingBottom: 40 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 32 },
   hintText: { fontSize: 15, color: "#6B7280", textAlign: "center", marginBottom: 8 },
   hintSub: { fontSize: 13, color: "#9CA3AF", textAlign: "center" },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, flexDirection: "row", alignItems: "flex-start", gap: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
-  cardAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#EEF4FF", justifyContent: "center", alignItems: "center", shrink: 0 },
+  cardAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#EEF4FF", justifyContent: "center", alignItems: "center", flexShrink: 0 },
   cardAvatarText: { fontSize: 20, fontWeight: "700", color: "#006FFD" },
   cardBody: { flex: 1 },
   cardName: { fontSize: 16, fontWeight: "700", color: "#1A1A2E", marginBottom: 4 },

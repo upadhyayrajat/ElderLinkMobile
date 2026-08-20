@@ -34,7 +34,9 @@ export default function RootLayout() {
 }
 
 // Redirects unauthenticated users to onboarding (first launch) or (auth)
-// (repeat launches), and authenticated users away from (auth).
+// (repeat launches), and authenticated users away from (auth) or the bare
+// index route (e.g. a cold launch with an existing session) to their
+// role's dashboard.
 function AuthGate({ seenOnboarding }: { seenOnboarding: boolean }) {
   const { user, isLoaded } = useAuthStore();
   const segments = useSegments();
@@ -43,12 +45,14 @@ function AuthGate({ seenOnboarding }: { seenOnboarding: boolean }) {
   useEffect(() => {
     if (!isLoaded) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const onOnboarding = segments[0] === "onboarding";
+    const firstSegment: string | undefined = segments[0];
+    const inAuthGroup = firstSegment === "(auth)";
+    const onOnboarding = firstSegment === "onboarding";
+    const onIndex = firstSegment === undefined || firstSegment === "index";
 
     if (!user && !inAuthGroup && !onOnboarding) {
       router.replace(seenOnboarding ? "/(auth)/login" : "/onboarding");
-    } else if (user && inAuthGroup) {
+    } else if (user && (inAuthGroup || onIndex)) {
       if (user.role !== "provider" && user.role !== "family") {
         // "company", "admin", or any future role with no mobile experience yet.
         router.replace("/unsupported-role");
@@ -66,6 +70,7 @@ function AuthGate({ seenOnboarding }: { seenOnboarding: boolean }) {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(family)" />

@@ -520,6 +520,105 @@ earlier passes treated seed data.
      currently absent (no rated verified providers yet there) — the rating
      line correctly and silently omits itself rather than showing stale or
      fabricated data.
+   - **iOS follow-up bug found + fixed (2026-08-20)**: the Android
+     verification above didn't surface it, but a true cold launch on the
+     iOS Simulator reliably landed on Expo Router's built-in "Unmatched
+     Route" screen and stayed there — `AuthGate`'s imperative
+     `router.replace(...)` (in its post-mount `useEffect`) never fired
+     because there was no `app/index.tsx`, so the router had nothing to
+     match at the literal `/` path on cold start. Reproduced consistently
+     across repeated cold restarts (`simctl terminate` +
+     `simctl openurl exp://.../--/`), confirming it wasn't a one-off
+     timing fluke. Fixed by adding `app/index.tsx` (renders the existing
+     `LoadingScreen` component) plus a matching `<Stack.Screen name="index" />`
+     entry in `app/_layout.tsx` — gives the router a real match for `/` so
+     it never falls through to the not-found screen, while `AuthGate`'s
+     existing effect (unchanged) redirects away from it immediately, the
+     same mechanism it already uses for every other auth-state transition.
+     Verified fixed across 3 consecutive full cold restarts on the iOS
+     Simulator. This was a latent gap in the pre-existing `AuthGate`
+     pattern (not something this feature introduced) that nothing had
+     surfaced before, since prior features were only verified on the
+     Android emulator.
+   - **Visual redesign (2026-08-20)**: the original layout (flat white
+     background, plain icon+text rows, system font) was judged too plain
+     for a first impression in a trust-sensitive category. Redesigned as a
+     gradient hero banner — diagonal blue→violet gradient (drawn with
+     `react-native-svg`'s `LinearGradient`, already a dependency, no new
+     gradient library) behind the logo/headline with soft translucent
+     decorative circles, white text, overlapped by a white rounded-top
+     panel holding the trust-signal chips (now icon-badge style — tinted
+     circular background behind each lucide icon) and the CTA (kept solid
+     brand blue, given a soft colored shadow). Added
+     `@expo-google-fonts/plus-jakarta-sans` + `expo-font` (one new
+     dependency) for real typographic personality, loaded locally within
+     `app/onboarding.tsx` only (not the global root layout) so it doesn't
+     add font-load latency to the rest of the app for a screen shown once.
+     A subtle fade + upward-translate entrance animation uses React
+     Native's built-in `Animated` API — no new dependency. The "How it
+     works" sheet's bullets got the same icon-badge treatment for visual
+     consistency. Purely visual — none of the underlying logic (`useStats`,
+     the threshold fallback, persistence, `AuthGate` routing,
+     `BottomSheet` mechanics) changed. Verified on both the Android
+     emulator and iOS Simulator: gradient/decorative shapes/font/shadows
+     all render correctly on both, status bar icons switch to light style
+     against the gradient, trust chips still respect the low-count
+     fallback and independent rating gate, "How it works" sheet still
+     opens/scrolls/dismisses correctly, and "Get Started" still routes to
+     login correctly on both platforms.
+8. ✅ **Delhi provider search fix** (2026-08-21) — a user reported that
+   searching "Delhi" in the family booking flow returned no providers.
+   Root cause was two stacked bugs, not a data gap:
+   - `app/(family)/providers/index.tsx` used a free-text `TextInput` for
+     city, sent verbatim to the backend, which does an exact
+     (case-insensitive) name match with no fuzzy matching — the seeded
+     city is named "Delhi NCR," not "Delhi," so it could never match.
+   - Even the exact string "Delhi NCR" wouldn't have worked: that city's
+     `active` column was `false` (`coming_soon: true`), and the backend
+     explicitly blocks bookings for inactive cities — despite 3 real
+     verified provider profiles already existing there.
+   - Backend (`../ElderLink`): new migration
+     `20260821000001_activate_delhi_ncr.sql` (`UPDATE cities SET active =
+     true, coming_soon = false WHERE id = '...003'`), applied to the local
+     dev DB and confirmed via `psql`. **Not yet applied to QA/production**
+     — that requires running the migration through the team's normal
+     Supabase deploy process; this machine only has local DB credentials.
+   - Mobile: replaced the free-text field with a real picker —
+     `src/components/CityPicker.tsx` (new, built on the existing
+     `BottomSheet`, with a local search filter) driven by
+     `useCities(true)` (new `activeOnly` param on `useCities`/`citiesApi`,
+     matching a query param the backend already supported). Selecting a
+     city sends its exact canonical name, so no typo/mismatch is possible
+     again. Also fixed two real, pre-existing bugs surfaced while touching
+     this file: the parent-city pre-fill used `useQuery`'s `onSuccess`,
+     removed in React Query v5 (documented in this repo's own `CLAUDE.md`
+     gotchas) — dead code, silently never fired; replaced with a
+     `useEffect` that matches the parent's saved city string against real
+     active cities and leaves the picker unselected on no match rather
+     than searching on a guess. And a `cardAvatar` style used `shrink: 0`
+     (not a valid RN property, should be `flexShrink: 0`) — both were live
+     `tsc` errors already flagged earlier this session as pre-existing;
+     `npx tsc --noEmit` is now fully clean.
+   - **Bonus bug found and fixed during verification, unrelated to city
+     search**: cold-launching the app with an existing session (the most
+     common real-world case — any returning logged-in user) hung forever
+     on a loading spinner and never reached the dashboard. Root cause in
+     `app/_layout.tsx`'s `AuthGate`: the effect's routing conditions
+     covered "unauthenticated user" and "authenticated user inside
+     `(auth)`," but not "authenticated user on the bare `index` route" —
+     the exact case introduced by this morning's iOS `Unmatched Route` fix
+     (`app/index.tsx`), which had only been verified for unauthenticated
+     cold launches. Fixed by widening the authenticated branch's condition
+     to also cover landing on `index`. Verified via repeated full cold
+     restarts (force-stop + relaunch) that a logged-in user now reaches
+     their dashboard immediately instead of hanging.
+   - Verified end-to-end on the Android emulator against local Postgres:
+     logged in as an existing family user (Mayank Goyal), opened Book a
+     Service → Companion Walk, confirmed the city picker pre-filled to
+     "Delhi NCR" (parent-city match), and the two real verified providers
+     (Sanjay Kapoor, Neha Singh) rendered — the exact scenario the user
+     originally reported as broken. Re-confirmed after the `AuthGate` fix
+     that the flow still works end-to-end.
 
 Lower priority, unscheduled:
 - Provider ↔ company linking (accept/request)
