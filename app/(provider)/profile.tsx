@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/src/store/auth";
 import { api } from "@/src/api/client";
+import { LanguageSwitcherButton } from "@/src/components/LanguagePicker";
 
 export default function ProviderProfileScreen() {
   const { user, clearSession } = useAuthStore();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const { data: profileData } = useQuery({
     queryKey: ["provider-profile"],
@@ -31,7 +34,10 @@ export default function ProviderProfileScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>My Profile</Text>
+      <View style={styles.topRow}>
+        <Text style={styles.title}>My Profile</Text>
+        <LanguageSwitcherButton />
+      </View>
 
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
@@ -43,7 +49,7 @@ export default function ProviderProfileScreen() {
 
       {profile && (
         <View style={styles.card}>
-          <Row label="Status" value={profile.verificationStatus} />
+          <Row label="Status" value={t(`provider.profile.verification.${profile.verificationStatus}`, profile.verificationStatus) as string} />
           <Row label="Trust score" value={`${profile.trustScore}/100`} />
           <Row label="Rating" value={`${profile.rating ?? 0}/5 (${profile.reviewCount ?? 0} reviews)`} />
           {profile.rejectionReason && (
@@ -56,7 +62,7 @@ export default function ProviderProfileScreen() {
       )}
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.8}>
-        <Text style={styles.signOutText}>Sign out</Text>
+        <Text style={styles.signOutText}>{t("provider.nav.signOut")}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -74,7 +80,8 @@ function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { padding: 20, paddingTop: 60 },
-  title: { fontSize: 24, fontWeight: "800", color: "#1A1A2E", marginBottom: 28 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
+  title: { fontSize: 24, fontWeight: "800", color: "#1A1A2E" },
   avatarContainer: { alignItems: "center", marginBottom: 28 },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#EEF4FF", justifyContent: "center", alignItems: "center", marginBottom: 12 },
   avatarText: { fontSize: 28, fontWeight: "800", color: "#006FFD" },

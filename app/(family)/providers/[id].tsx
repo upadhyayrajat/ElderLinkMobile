@@ -4,7 +4,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { providersApi } from "@/src/api/providers";
-import { ArrowLeft, Star, ShieldCheck, Calendar } from "lucide-react-native";
+import { ArrowLeft, Star, ShieldCheck, Calendar, Repeat } from "lucide-react-native";
 
 export default function ProviderDetailScreen() {
   const { id, serviceTypeId, serviceName } = useLocalSearchParams<{
@@ -100,6 +100,25 @@ export default function ProviderDetailScreen() {
         <Calendar size={18} color="#fff" />
         <Text style={styles.bookBtnText}>Book {serviceName ?? "Service"}</Text>
       </TouchableOpacity>
+
+      {/* Set up recurring */}
+      <TouchableOpacity
+        style={styles.recurringBtn}
+        onPress={() =>
+          router.push({
+            pathname: "/(family)/recurring/new" as any,
+            params: {
+              serviceTypeId,
+              serviceName: serviceName ?? "",
+              providerUserId: provider.userId,
+            },
+          })
+        }
+        activeOpacity={0.85}
+      >
+        <Repeat size={18} color="#006FFD" />
+        <Text style={styles.recurringBtnText}>Set Up Recurring Booking</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -128,4 +147,6 @@ const styles = StyleSheet.create({
   bioText: { fontSize: 14, color: "#374151", lineHeight: 22 },
   bookBtn: { backgroundColor: "#006FFD", borderRadius: 16, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 },
   bookBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  recurringBtn: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#006FFD", borderRadius: 16, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12 },
+  recurringBtnText: { color: "#006FFD", fontSize: 16, fontWeight: "700" },
 });

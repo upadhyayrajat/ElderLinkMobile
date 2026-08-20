@@ -177,6 +177,69 @@ family-side cancel path — these reuse code already verified in the service
 reports / reviews passes earlier this session, so confidence is high, but
 they weren't re-clicked in this specific pass.
 
+### Booking flow closeout: remaining transitions + cancel path (2026-08-20)
+
+Verified end-to-end on the Android emulator against a local backend, closing
+out the "not yet exercised" gap above:
+
+- **`confirmed → in_progress → completed`**: logged in as provider Ravi
+  Sharma, accepted a pending seed booking, tapped "Start Job" (granting the
+  location permission prompt), then "Mark as Complete". Confirmed via direct
+  DB query that `status_history` recorded all four transitions
+  (`pending → confirmed → in_progress → completed`) with the correct actor
+  and timestamps. The post-completion "Submit Visit Report" form rendered
+  correctly (same code path already verified in the service-reports pass).
+- **Family-side cancel**: created a fresh `pending` test booking via the
+  API, opened it as family user Mayank Goyal in
+  `app/(family)/bookings/[id].tsx`, tapped "Cancel Booking" → confirmed, and
+  verified via DB query that `status` became `cancelled` with a correct
+  `statusHistory` entry.
+
+**Finding — live location posting could not be confirmed (environment
+limitation, not an app bug)**: the "In Progress — Sharing location every
+30 s" banner appears correctly once a job starts, but no
+`POST /api/provider/bookings/[id]/location` request ever landed in the web
+server log, even after setting a fixed GPS coordinate on the emulator via
+`adb emu geo fix`. `adb logcat` showed the root cause: Google's fused
+location provider repeatedly failed with
+`GlsClientGrpc: Application credential header not valid` — a Google Play
+Services credential issue specific to running `expo-location` inside Expo
+Go's shared `host.exp.exponent` package on this emulator, not something
+fixable in the ElderLinkMobile code. This would need a real device or an
+EAS dev build with a properly configured Maps/Play Services API key to
+verify conclusively.
+
+**Related code smell — fixed (2026-08-20).** `app/(provider)/jobs/[id].tsx`'s
+`postLocation()` catch block previously swallowed *all* failures silently,
+and the "Sharing location" banner was shown unconditionally the moment a
+job went `in_progress`, regardless of whether any post had actually
+succeeded — so the exact Play Services failure above would have been
+invisible to both provider and family. Fixed by tracking the last
+successful post (`lastLocationSuccessRef`) against when sharing started
+(`sharingStartedAtRef`); if posting has been failing for
+`LOCATION_STALE_THRESHOLD_MS` (60s, 2× the post interval) since whichever
+is more recent, the banner switches to an amber "Location sharing may be
+delayed — check your connection or GPS signal" state instead of claiming
+success. A single blip doesn't trigger it — only sustained failure across
+at least two post attempts does. No `Alert` — stays a passive UI state.
+State resets cleanly whenever the job leaves `in_progress`.
+
+Verified end-to-end on the Android emulator against a local backend: as
+provider Ravi Sharma, started a fresh test job, confirmed the banner
+initially showed the normal green "Sharing location" message, then — since
+this emulator is already known to fail every location POST via the same
+`GlsClientGrpc` credential issue — waited ~65s and confirmed the banner
+correctly flipped to the amber staleness warning (cross-checked via
+`adb logcat` that the failures were the same known cause, and confirmed
+zero POSTs reached the web dev log). Marked the job complete and confirmed
+the banner disappeared entirely with no stale state leaking forward.
+
+All test data from this pass (2 throwaway bookings from the closeout pass,
+1 throwaway booking from this fix's verification) deleted afterward; the
+pre-existing seed booking driven through the transitions in the closeout
+pass was left in its resulting `completed` state, consistent with how
+earlier passes treated seed data.
+
 ## Feature backlog (priority order, agreed 2026-08-18)
 
 1. ✅ **Service reports** (provider submit + family view) — built and
@@ -230,9 +293,233 @@ they weren't re-clicked in this specific pass.
    - Not separately re-exercised: the 409 duplicate-submit path (identical
      code path to service reports' already-verified 409 handling, not
      re-clicked here) and the 422 pre-completion path.
-4. ⬜ **Recurring bookings** — API client fixed, no screens yet.
-5. ⬜ **Chat** (per-booking messaging) — no API client, no screens.
-6. ⬜ **i18n / locale switching** — no API client, no screens.
+4. ✅ **Recurring bookings** (set up + view + cancel) — built and
+   **verified end-to-end** 2026-08-20 on the Android emulator against a
+   real local `../ElderLink` + Supabase backend. No backend changes needed
+   — `GET/POST /api/family/recurring` and `PATCH /api/family/recurring/[id]`
+   already matched the existing `src/api/recurring-bookings.ts` client.
+   - New: `src/hooks/useRecurringBookings.ts`; `app/(family)/recurring/new.tsx`
+     (frequency segmented control, optional weekly day-of-week picker,
+     time/start/end date fields, reuses the parent-selection + pricing
+     patterns from `bookings/new.tsx`); `app/(family)/recurring/index.tsx`
+     (list with service/parent names resolved client-side via the existing
+     `useServices()`/parents cache — no new backend joins — schedule, date
+     range, price, Active/Cancelled pill, cancel action).
+   - Entry points added: a "Set Up Recurring Booking" button on
+     `app/(family)/providers/[id].tsx` (alongside the existing "Book Now"),
+     and a "Recurring" header button on `app/(family)/bookings/index.tsx`.
+   - Logged in as family user Mayank Goyal, booked a weekly Companion Walk
+     recurring booking with Sunita Agarwal (Agra) starting 27 Aug 2026,
+     confirmed the success alert reported "8 upcoming visits scheduled"
+     (matching `OCCURRENCES_AHEAD.weekly`), and confirmed via direct DB
+     query: one `recurring_bookings` row with all correct fields and 8
+     generated `bookings` rows, 7 days apart. Confirmed the list screen
+     rendered it correctly, cancelled it, and confirmed via DB query that
+     `active` flipped to `false` and the list reflected "Cancelled" with
+     the cancel button gone. Confirmed the empty state (message + "Browse
+     services" CTA) renders once the list is empty.
+   - **Bug found and fixed during this pass**: the list's `formatDate()`
+     (and the create screen's date validation) parsed `"YYYY-MM-DD"`
+     strings via `new Date(dateStr)`, which JS treats as UTC midnight —
+     once converted to a timezone behind UTC (this emulator defaults to
+     `America/New_York`), the displayed date silently shifted back a day
+     ("27 Aug" showed as "26 Aug"), and the same parsing in the create
+     screen's "start date can't be in the past" check could misfire near
+     a timezone boundary. Fixed by comparing/parsing the date strings as
+     local calendar components (or lexically as strings, for the ordering
+     checks) instead of through `Date`'s UTC-based string parsing.
+     Re-verified after the fix: the list correctly showed "From 27 Aug
+     2026" matching the entered start date.
+   - Test data (the recurring booking, its 8 generated bookings, and a
+     throwaway parent profile in Agra created for this pass) deleted
+     afterward.
+5. ✅ **Chat** (per-booking messaging) — built and **verified end-to-end**
+   2026-08-20 on the Android emulator against a real local `../ElderLink` +
+   Supabase backend. No backend changes needed —
+   `GET/POST /api/{family,provider}/bookings/[id]/chat` and the
+   `chat_messages` table/repository already existed and matched exactly;
+   only the mobile client/UI was missing. Not exposed by the backend, so
+   out of scope for this pass: read receipts (`markRead` exists on the
+   repository but no route calls it) and photo attachments (the POST
+   schema only accepts `body`, even though the DB column and
+   `ChatMessage.photoUrl` type field exist). No push-send dispatcher
+   exists anywhere in the web repo either (device tokens are registered
+   but nothing sends to them) — delivery is polling-only.
+   - New: `src/api/chat.ts` (role-split client, mirrors
+     `src/api/reviews.ts`); `src/hooks/useChat.ts`
+     (`useChatMessages`/`useSendChatMessage`, 5s `refetchInterval` polling
+     — no realtime subscription from mobile, consistent with `CLAUDE.md`'s
+     "never talks to Supabase directly," even though the backend broadcasts
+     over Supabase Realtime on every send); `app/(family)/bookings/chat/[id].tsx`
+     and `app/(provider)/jobs/chat/[id].tsx` (near-identical bubble-thread
+     screens — own messages right-aligned/blue, others left-aligned/white,
+     auto-scroll to bottom, `TopBar`/`LoadingScreen`/`EmptyState` shared
+     components).
+   - Entry points added: an always-visible "Message Provider" /
+     "Message Family" outline button on `app/(family)/bookings/[id].tsx`
+     and `app/(provider)/jobs/[id].tsx`, right below the status badge (not
+     status-gated — chat should work before/after the job too).
+   - Verified as family user Mayank Goyal and provider Amit Yadav on the
+     same completed booking: sent a message from the family side, confirmed
+     it rendered right-aligned and landed in `chat_messages` via direct DB
+     query with the correct `sender_user_id`; logged in as the provider,
+     confirmed the same message rendered left-aligned, replied, confirmed
+     via DB query. Logged back in as the family user, opened the thread,
+     and — without navigating away or reopening the screen — inserted a
+     third message directly via DB to simulate an incoming reply; confirmed
+     it appeared automatically within one 5s poll cycle. Confirmed the
+     empty state ("No messages yet — say hello!") renders correctly on a
+     booking with zero messages, and (incidentally, via a different seed
+     booking not touched by this pass) that a pre-existing real multi-message
+     thread from seed data also renders correctly.
+   - The 1000-char validation path was confirmed by reading the backend's
+     zod schema directly (`body: z.string().min(1).max(1000)`) rather than
+     click-tested, since the client-side error-surfacing code
+     (`err.response.data.error` via `Alert.alert`) is copied verbatim from
+     the already-proven pattern used in every other mutation in this app.
+   - Test data (3 messages created/inserted on booking
+     `b0000000-0000-0000-0000-000000000001` during verification) deleted
+     afterward.
+6. ✅ **i18n / locale switching** — built and **verified end-to-end**
+   2026-08-20 on the Android emulator against a real local `../ElderLink` +
+   Supabase backend. The web repo already had real i18n infrastructure to
+   mirror (7 locales — en/hi/ml/ta/kn/mr/te — `SUPPORTED_LOCALES`/
+   `LOCALE_LABELS`/`DEFAULT_LOCALE` in `src/i18n/locales.ts`, a
+   `preferredLocale` field already on the shared `User` type, and
+   `PATCH /api/user/locale` already accepting mobile Bearer tokens), but
+   translation coverage there is scoped to `auth` + `provider` + `shared`
+   namespaces only — the family flow has zero translated strings on either
+   repo, so this pass matches that scope rather than machine-translating
+   unreviewed copy for a safety-critical flow (SOS etc).
+   - Backend (`../ElderLink`, small scoped edits): both mobile auth
+     endpoints (`register`, `verify-otp`) now include `preferredLocale` in
+     the returned `user` object (previously omitted); `register` now
+     accepts an optional `preferredLocale` in the request body instead of
+     always defaulting to `"en"`.
+   - New mobile: `src/i18n/locales.ts` (mirrors the web constants);
+     `src/i18n/messages/{en,hi,ml,ta,kn,mr,te}.json` (copied verbatim from
+     `../ElderLink/messages/*.json` — same "keep in sync with the web
+     repo" convention as `src/types/index.ts`); `src/i18n/index.ts`
+     (`i18next` + `react-i18next`, plus `i18next-icu` — the bundles use
+     next-intl's ICU MessageFormat syntax, `"{name}"` /
+     `"{count, plural, ...}"`, which i18next doesn't parse by default;
+     without the ICU plugin `{name}` renders literally instead of
+     interpolating — caught during verification and fixed by adding
+     `i18next-icu`/`intl-messageformat` rather than rewriting the bundles);
+     `src/components/LanguagePicker.tsx` (`LanguageSwitcherButton` — globe
+     icon + modal listing all 7 locales in native script with a checkmark
+     on the active one).
+   - Persistence: `expo-secure-store` (already a dependency, already used
+     for tokens) under key `elderlink_locale` — no cookies (React Native
+     has no cookie jar) and no new storage dependency for a 2-character
+     value.
+   - Login/register tie-break rule (confirmed with the user before
+     building): if the user explicitly changed language on a pre-login
+     screen this session, that choice wins and is pushed to the server on
+     login/register, overwriting the stored value; otherwise the server's
+     stored `preferredLocale` (returned in the auth response) is adopted
+     locally, restoring whatever was saved last time. Implemented via a
+     module-level "touched this session" flag in `src/i18n/index.ts`
+     (`markPreLoginLocaleTouched`/`consumePreLoginLocaleTouched`).
+   - Entry points: globe-icon switcher on `(auth)/login.tsx`,
+     `(auth)/register.tsx`, `(auth)/verify-otp.tsx` (matches where the web
+     app places its own switcher); `(family)/dashboard.tsx` header (no
+     family settings/profile screen exists to hang it on instead — a
+     decision confirmed with the user rather than inventing a new screen);
+     `(provider)/profile.tsx` header.
+   - String extraction: auth screens (login/register/verify-otp) fully
+     wired to `auth.*` keys; provider screens partially wired to matching
+     `provider.*` keys only — `dashboard.tsx` (stats, empty state,
+     greeting), `jobs/index.tsx` (title, status badges, empty state),
+     `jobs/[id].tsx` (chat button, earnings/notes/rating card titles),
+     `profile.tsx` (verification status, sign-out). Strings with no
+     matching key in the copied bundle (job accept/decline/start/complete
+     buttons, the visit-report and review form fields) were deliberately
+     left in English rather than inventing new keys that would need
+     translating across all 7 locales without review. Family screens are
+     entirely untranslated (out of scope, per the confirmed decision) —
+     the globe icon is present but only changes strings on screens that
+     have translations.
+   - Verified: pre-login language switch re-renders login/verify-otp
+     instantly; registered a new user with Hindi selected pre-login,
+     confirmed the DB row's `preferred_locale` was `"hi"` (direct `psql`
+     check) and the register response echoed it; logged out (cleared app
+     data to simulate a fresh device) and logged back in **without**
+     touching the switcher, confirmed the app auto-restored Hindi from the
+     server value with no local state to fall back on; logged in as a
+     second, different existing user (whose saved preference was `"en"`)
+     while explicitly picking Tamil pre-login, confirmed the app ended up
+     in Tamil and the DB row updated to `"ta"` — proving both halves of
+     the tie-break rule; used the family dashboard's and provider
+     profile's post-login switchers, confirmed each PATCH persisted to the
+     DB immediately (`psql` check) and provider-flow strings re-rendered
+     without a restart. Caught and fixed the ICU-interpolation bug
+     (`{name}` not substituting) mid-verification on the provider
+     dashboard's welcome message.
+   - Test data (one newly-registered test user and its audit-log row, both
+     deleted; two pre-existing seed users' `preferred_locale` touched
+     during testing, reverted back to `"en"`) cleaned up afterward.
+7. ✅ **First-launch onboarding / landing screen** — built and
+   **verified end-to-end** 2026-08-20 on the Android emulator, first
+   against a real local `../ElderLink` + Supabase backend, then confirmed
+   loading cleanly against QA. Cold start previously went straight from a
+   blank loading state into `/(auth)/login` with zero context; this adds a
+   single hero/trust screen shown once per install, deliberately not a
+   swipeable multi-screen carousel (discussed and rejected as a dated,
+   low-read-through pattern that reads as generic-template rather than
+   polished).
+   - Backend (`../ElderLink`): new public `GET /api/stats` route
+     (`src/app/api/stats/route.ts`, no auth, `revalidate = 300`) returning
+     `{ verifiedProviderCount, averageRating }` computed from
+     `provider_profiles` (`verification_status = 'verified'` count; average
+     of the existing denormalized `rating` column, kept in sync by the
+     pre-existing `recalculate_provider_rating()` trigger — no new
+     aggregation logic needed). Confirmed by direct comparison against
+     `psql` that the endpoint returns exactly the real DB numbers, not
+     placeholders.
+   - New mobile: `app/onboarding.tsx` (hero + real trust signals + primary
+     "Get Started" CTA + secondary "How it works" link); `src/onboarding/index.ts`
+     (`hasSeenOnboarding`/`markOnboardingSeen` via `expo-secure-store`,
+     mirroring the `src/i18n/index.ts` bootstrap pattern, plus the
+     `MIN_VERIFIED_PROVIDERS_TO_SHOW` threshold constant); `src/api/stats.ts`
+     + `src/hooks/useStats.ts` (public, long `staleTime`, never blocks
+     rendering on a slow/failed fetch); `src/components/BottomSheet.tsx`
+     (modal/backdrop/rounded-sheet shell extracted out of
+     `LanguagePicker.tsx`'s existing inline implementation so the new
+     "How it works" sheet didn't duplicate it — `LanguagePicker.tsx`
+     refactored to use it, behavior-preserving).
+   - Low-count fallback (confirmed with the user before building): below
+     `MIN_VERIFIED_PROVIDERS_TO_SHOW` (25), the screen shows qualitative
+     trust copy ("Verified, background-checked caregivers") instead of the
+     raw count, since a small real number could undercut trust rather than
+     build it; the average rating renders independently whenever non-null.
+     The threshold lives on the mobile client, not the endpoint, which
+     always returns raw truth.
+   - `app/_layout.tsx`: new `onboarding` top-level route; `AuthGate` now
+     routes an unauthenticated user to `/onboarding` on first launch and to
+     `/(auth)/login` on every launch after (gated on the persisted
+     SecureStore flag, resolved before first render the same way
+     `localeReady` already gates on locale bootstrap).
+   - i18n scope (confirmed with the user): onboarding copy is English-only
+     this pass — unlike the auth/provider strings, this screen has no
+     web-app equivalent bundle to copy verbatim, so translating now would
+     mean authoring unreviewed copy in 6 languages.
+   - Verified: fresh install (SecureStore flag unset) shows onboarding
+     before login, not after; the local dev DB's real count (13 verified
+     providers) is below the threshold, so the qualitative fallback
+     rendered live (not simulated) while the real 4.6 average rating
+     displayed correctly; "How it works" sheet opens showing both role
+     sections, scrolls, and dismisses cleanly; "Get Started" routes to
+     login and `markOnboardingSeen()` persists — force-stopping and
+     relaunching the app skipped onboarding on the second launch; logged in
+     as an existing family user (Mayank Goyal) to confirm `AuthGate`'s
+     role-based routing to `/(family)/dashboard` still works unchanged;
+     confirmed `LanguagePicker` still opens/closes correctly after the
+     `BottomSheet` extraction (regression check). Also confirmed the app
+     boots cleanly pointed at QA, where the real average rating is
+     currently absent (no rated verified providers yet there) — the rating
+     line correctly and silently omits itself rather than showing stale or
+     fabricated data.
 
 Lower priority, unscheduled:
 - Provider ↔ company linking (accept/request)

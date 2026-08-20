@@ -4,12 +4,16 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/src/store/auth";
 import { authApi } from "@/src/api/auth";
+import { LanguageSwitcherButton } from "@/src/components/LanguagePicker";
+import { consumePreLoginLocaleTouched, i18next } from "@/src/i18n";
 
 export default function RegisterScreen() {
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { setSession } = useAuthStore();
 
   const [name, setName] = useState("");
@@ -23,10 +27,14 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const { data } = await authApi.register(phone, name.trim(), role);
+      // If the user picked a language on the login/verify-otp screens this
+      // session, carry it into the new account; otherwise the backend
+      // defaults to English.
+      const preferredLocale = consumePreLoginLocaleTouched() ? i18next.language : undefined;
+      const { data } = await authApi.register(phone, name.trim(), role, preferredLocale);
       await setSession(data.user, data.accessToken, data.refreshToken);
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? "Registration failed.";
+      const msg = err?.response?.data?.error ?? t("auth.register.errors.registerFailed");
       Alert.alert("Error", msg);
     } finally {
       setLoading(false);
@@ -39,24 +47,27 @@ export default function RegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        <View style={styles.topRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+          <LanguageSwitcherButton />
+        </View>
 
-        <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Almost done — tell us a bit about yourself</Text>
+        <Text style={styles.title}>{t("auth.register.title")}</Text>
+        <Text style={styles.subtitle}>{t("auth.register.description")}</Text>
 
-        <Text style={styles.label}>Full name</Text>
+        <Text style={styles.label}>{t("auth.register.nameLabel")}</Text>
         <TextInput
           style={styles.input}
-          placeholder="Priya Sharma"
+          placeholder={t("auth.register.namePlaceholder")}
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
           returnKeyType="done"
         />
 
-        <Text style={styles.label}>I am joining as</Text>
+        <Text style={styles.label}>{t("auth.register.roleLabel")}</Text>
         <View style={styles.roleRow}>
           {(["family", "provider"] as const).map((r) => (
             <TouchableOpacity
@@ -65,7 +76,9 @@ export default function RegisterScreen() {
               onPress={() => setRole(r)}
             >
               <Text style={[styles.roleBtnText, role === r && styles.roleBtnTextActive]}>
-                {r === "family" ? "👨‍👩‍👧 Family" : "🤝 Caregiver"}
+                {r === "family"
+                  ? `👨‍👩‍👧 ${t("auth.register.roles.family.label")}`
+                  : `🤝 ${t("auth.register.roles.provider.label")}`}
               </Text>
             </TouchableOpacity>
           ))}
@@ -79,7 +92,7 @@ export default function RegisterScreen() {
         >
           {loading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.btnText}>Create account</Text>
+            : <Text style={styles.btnText}>{t("auth.register.submit")}</Text>
           }
         </TouchableOpacity>
       </ScrollView>
@@ -90,7 +103,8 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   inner: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
-  back: { marginBottom: 32 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 32 },
+  back: {},
   backText: { fontSize: 16, color: "#006FFD" },
   title: { fontSize: 24, fontWeight: "700", color: "#1A1A2E" },
   subtitle: { fontSize: 15, color: "#6B7280", marginTop: 6, marginBottom: 32 },

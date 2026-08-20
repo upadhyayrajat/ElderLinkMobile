@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { bookingsApi } from "@/src/api/bookings";
 import type { Booking, BookingStatus } from "@/src/types";
 import { ChevronRight } from "lucide-react-native";
@@ -27,6 +28,7 @@ function formatPaise(paise: number) {
 
 function JobRow({ item }: { item: Booking }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const color = STATUS_COLOR[item.status] ?? "#6B7280";
   return (
     <TouchableOpacity
@@ -40,7 +42,9 @@ function JobRow({ item }: { item: Booking }) {
       </View>
       <View style={styles.rowRight}>
         <View style={[styles.badge, { backgroundColor: color + "20" }]}>
-          <Text style={[styles.badgeText, { color }]}>{item.status.replace("_", " ")}</Text>
+          <Text style={[styles.badgeText, { color }]}>
+            {t(`provider.jobs.status.${item.status}`, item.status.replace("_", " "))}
+          </Text>
         </View>
         <ChevronRight size={16} color="#9CA3AF" />
       </View>
@@ -49,6 +53,7 @@ function JobRow({ item }: { item: Booking }) {
 }
 
 export default function ProviderJobsScreen() {
+  const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ["provider-bookings"],
     queryFn: () => bookingsApi.listForProvider().then((r) => r.data.data),
@@ -57,7 +62,7 @@ export default function ProviderJobsScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>All Jobs</Text>
+        <Text style={styles.title}>{t("provider.jobs.title")}</Text>
         <Text style={styles.count}>{(data ?? []).length} total</Text>
       </View>
 
@@ -71,7 +76,7 @@ export default function ProviderJobsScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No jobs yet.</Text>
+              <Text style={styles.emptyText}>{t("provider.jobs.noJobs")}</Text>
             </View>
           }
         />

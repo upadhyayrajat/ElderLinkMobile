@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -11,7 +12,7 @@ import { bookingsApi } from "@/src/api/bookings";
 import { serviceReportsApi, type CreateServiceReportInput } from "@/src/api/service-reports";
 import { reviewsApi } from "@/src/api/reviews";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, X, CheckCircle2, Star } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, X, CheckCircle2, Star, MessageCircle } from "lucide-react-native";
 
 function StarRating({ rating, onChange }: { rating: number; onChange: (n: number) => void }) {
   return (
@@ -34,6 +35,7 @@ const MOOD_OPTIONS: { value: ElderMood; label: string; color: string }[] = [
 ];
 
 const LOCATION_INTERVAL_MS = 30_000;
+const LOCATION_STALE_THRESHOLD_MS = LOCATION_INTERVAL_MS * 2;
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending:     "#F59E0B",
@@ -104,8 +106,12 @@ function ActionButton({
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastLocationSuccessRef = useRef<number | null>(null);
+  const sharingStartedAtRef = useRef<number | null>(null);
+  const [locationStale, setLocationStale] = useState(false);
 
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [rating, setRating] = useState(0);
@@ -144,6 +150,9 @@ export default function JobDetailScreen() {
         clearInterval(locationIntervalRef.current);
         locationIntervalRef.current = null;
       }
+      lastLocationSuccessRef.current = null;
+      sharingStartedAtRef.current = null;
+      setLocationStale(false);
       return;
     }
 
@@ -157,12 +166,22 @@ export default function JobDetailScreen() {
         return;
       }
 
+      sharingStartedAtRef.current = Date.now();
+
       const postLocation = async () => {
         try {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           await bookingsApi.postLocation(id, loc.coords.latitude, loc.coords.longitude);
+          lastLocationSuccessRef.current = Date.now();
+          setLocationStale(false);
         } catch {
-          // Silent — network blip during an outing shouldn't surface as an error
+          // A single blip shouldn't alarm anyone — only flag it once posting
+          // has been failing long enough that "sharing location" would be a
+          // misleading claim to the family.
+          const reference = lastLocationSuccessRef.current ?? sharingStartedAtRef.current;
+          if (reference !== null && Date.now() - reference >= LOCATION_STALE_THRESHOLD_MS) {
+            setLocationStale(true);
+          }
         }
       };
 
@@ -178,6 +197,9 @@ export default function JobDetailScreen() {
         clearInterval(locationIntervalRef.current);
         locationIntervalRef.current = null;
       }
+      lastLocationSuccessRef.current = null;
+      sharingStartedAtRef.current = null;
+      setLocationStale(false);
     };
   }, [booking?.status, id]);
 
@@ -310,13 +332,25 @@ export default function JobDetailScreen() {
 
       {/* Live location sharing indicator */}
       {isSharingLocation && (
-        <View style={styles.locationBanner}>
-          <MapPin size={14} color="#10B981" />
-          <Text style={styles.locationBannerText}>
-            Sharing location with family every 30 s
+        <View style={[styles.locationBanner, locationStale && styles.locationBannerStale]}>
+          <MapPin size={14} color={locationStale ? "#D97706" : "#10B981"} />
+          <Text style={[styles.locationBannerText, locationStale && styles.locationBannerTextStale]}>
+            {locationStale
+              ? "Location sharing may be delayed — check your connection or GPS signal"
+              : "Sharing location with family every 30 s"}
           </Text>
         </View>
       )}
+
+      {/* Chat */}
+      <TouchableOpacity
+        style={styles.chatBtn}
+        onPress={() => router.push(`/(provider)/jobs/chat/${id}` as any)}
+        activeOpacity={0.85}
+      >
+        <MessageCircle size={18} color="#006FFD" />
+        <Text style={styles.chatBtnText}>{t("provider.jobDetail.chatWithFamily")}</Text>
+      </TouchableOpacity>
 
       {/* Schedule */}
       <View style={styles.card}>
@@ -335,7 +369,7 @@ export default function JobDetailScreen() {
 
       {/* Earnings */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Your Earnings</Text>
+        <Text style={styles.cardTitle}>{t("provider.jobDetail.yourEarnings")}</Text>
         <InfoRow
           icon={<DollarSign size={16} color="#6B7280" />}
           label="Service fee (before platform cut)"
@@ -353,7 +387,7 @@ export default function JobDetailScreen() {
       {/* Notes */}
       {booking.notes ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Family Notes</Text>
+          <Text style={styles.cardTitle}>{t("provider.jobDetail.notesFromFamily")}</Text>
           <Text style={styles.notesText}>{booking.notes}</Text>
         </View>
       ) : null}
@@ -520,7 +554,7 @@ export default function JobDetailScreen() {
           </View>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Rate This Family</Text>
+            <Text style={styles.cardTitle}>{t("provider.jobDetail.rateThisFamily")}</Text>
             <StarRating rating={rating} onChange={setRating} />
             <TextInput
               style={[styles.reportInput, { minHeight: 70, marginTop: 16, textAlignVertical: "top" }]}
@@ -561,6 +595,10 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 13, fontWeight: "700", flex: 1 },
   locationBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14 },
   locationBannerText: { fontSize: 13, color: "#15803D", fontWeight: "500" },
+  locationBannerStale: { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
+  locationBannerTextStale: { color: "#B45309" },
+  chatBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#006FFD", borderRadius: 14, paddingVertical: 12, marginBottom: 14 },
+  chatBtnText: { fontSize: 14, fontWeight: "700", color: "#006FFD" },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 18, marginBottom: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   cardTitle: { fontSize: 13, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },

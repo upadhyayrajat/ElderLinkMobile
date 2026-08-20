@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { bookingsApi } from "@/src/api/bookings";
 import type { Booking, BookingStatus } from "@/src/types";
-import { Plus } from "lucide-react-native";
+import { Plus, Repeat } from "lucide-react-native";
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
   pending:     "#F59E0B",
@@ -56,12 +56,20 @@ export default function BookingsScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Bookings</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push("/(family)/bookings/new" as any)}
-        >
-          <Plus size={20} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.recurringBtn}
+            onPress={() => router.push("/(family)/recurring" as any)}
+          >
+            <Repeat size={20} color="#006FFD" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push("/(family)/bookings/new" as any)}
+          >
+            <Plus size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading ? (
@@ -87,7 +95,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F9FAFB" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
   title: { fontSize: 24, fontWeight: "800", color: "#1A1A2E" },
+  headerActions: { flexDirection: "row", gap: 10 },
   addBtn: { backgroundColor: "#006FFD", borderRadius: 10, padding: 8 },
+  recurringBtn: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#006FFD", borderRadius: 10, padding: 8 },
   list: { padding: 20, gap: 10 },
   row: { backgroundColor: "#fff", borderRadius: 14, padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   rowDate: { fontSize: 15, fontWeight: "600", color: "#1A1A2E" },

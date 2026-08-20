@@ -4,11 +4,14 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { authApi } from "@/src/api/auth";
 import { INTL_PHONE_REGEX } from "@/src/utils/phone";
+import { LanguageSwitcherButton } from "@/src/components/LanguagePicker";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +30,7 @@ export default function LoginScreen() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        ?? "Failed to send OTP. Please try again.";
+        ?? t("auth.login.errors.sendFailed");
       Alert.alert("Error", msg);
     } finally {
       setLoading(false);
@@ -40,13 +43,16 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
-        <Text style={styles.logo}>ElderLink</Text>
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Enter your mobile number to continue</Text>
+        <View style={styles.topRow}>
+          <Text style={styles.logo}>ElderLink</Text>
+          <LanguageSwitcherButton />
+        </View>
+        <Text style={styles.title}>{t("auth.login.title")}</Text>
+        <Text style={styles.subtitle}>{t("auth.login.description")}</Text>
 
         <TextInput
           style={styles.phoneInput}
-          placeholder="+91 98765 43210"
+          placeholder={t("auth.login.phonePlaceholder")}
           placeholderTextColor="#9CA3AF"
           keyboardType="phone-pad"
           value={phone}
@@ -64,7 +70,7 @@ export default function LoginScreen() {
         >
           {loading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.btnText}>Send OTP</Text>
+            : <Text style={styles.btnText}>{t("auth.login.submit")}</Text>
           }
         </TouchableOpacity>
 
@@ -79,7 +85,8 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   inner: { flex: 1, paddingHorizontal: 24, paddingTop: 80, paddingBottom: 40 },
-  logo: { fontSize: 28, fontWeight: "800", color: "#006FFD", marginBottom: 40 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 40 },
+  logo: { fontSize: 28, fontWeight: "800", color: "#006FFD" },
   title: { fontSize: 24, fontWeight: "700", color: "#1A1A2E" },
   subtitle: { fontSize: 15, color: "#6B7280", marginTop: 6, marginBottom: 32 },
   phoneInput: { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, fontSize: 17, paddingHorizontal: 14, paddingVertical: 14, color: "#1A1A2E", marginBottom: 16 },

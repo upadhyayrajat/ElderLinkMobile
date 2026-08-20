@@ -1,0 +1,305 @@
+{
+  "auth": {
+    "login": {
+      "tagline": "Care, closer to home",
+      "title": "Welcome back",
+      "description": "Enter your mobile number to continue",
+      "phoneLabel": "Mobile number",
+      "phonePlaceholder": "+91 98765 43210 or +1 415 555 0100",
+      "sending": "Sending…",
+      "submit": "Continue",
+      "errors": {
+        "sendFailed": "Failed to send OTP.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "verifyOtp": {
+      "tagline": "Care, closer to home",
+      "title": "Enter OTP",
+      "descriptionPrefix": "We sent a 6-digit code to",
+      "otpLabel": "One-time password",
+      "otpPlaceholder": "123456",
+      "resendSuccess": "OTP resent successfully.",
+      "verifying": "Verifying…",
+      "submit": "Verify OTP",
+      "resendOtp": "Resend OTP",
+      "changeNumber": "Change number",
+      "errors": {
+        "verifyFailed": "Verification failed.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "register": {
+      "tagline": "Care, closer to home",
+      "title": "Create your account",
+      "description": "Tell us a bit about yourself",
+      "nameLabel": "Full name",
+      "namePlaceholder": "Priya Sharma",
+      "roleLabel": "I am joining as",
+      "creating": "Creating account…",
+      "submit": "Create account",
+      "roles": {
+        "family": {
+          "label": "Family",
+          "description": "Booking care for a parent"
+        },
+        "provider": {
+          "label": "Caregiver",
+          "description": "Providing care services"
+        },
+        "company": {
+          "label": "Care Company",
+          "description": "Managing a team of caregivers"
+        }
+      },
+      "errors": {
+        "registerFailed": "Registration failed.",
+        "generic": "Something went wrong. Please try again."
+      }
+    },
+    "consent": {
+      "headerTitle": "Your data, your control",
+      "headerDescription": "Before we get started, we need your explicit consent to store and process health and care data for your elderly relative, as required by the <strong>Digital Personal Data Protection Act 2023</strong> (DPDP Act).",
+      "whatWeCollect": "What we collect",
+      "collect": {
+        "health": {
+          "title": "Health & care information",
+          "detail": "Medical notes, mobility status, and wellness observations about your elderly relative."
+        },
+        "bookings": {
+          "title": "Booking & service history",
+          "detail": "Records of care visits, services booked, and payments made through ElderLink."
+        },
+        "location": {
+          "title": "Location data (during visits)",
+          "detail": "Live GPS location shared by the caregiver during an active booking — visible only to you."
+        },
+        "profile": {
+          "title": "Phone number & profile",
+          "detail": "Your contact details to enable booking, notifications, and account management."
+        }
+      },
+      "assurances": {
+        "localisation": "Data is stored in India (Mumbai region) in compliance with DPDP localisation requirements.",
+        "noSale": "Data is never sold to third parties. It is used solely to provide ElderLink services.",
+        "erasure": "You can request erasure of your data at any time from your account settings."
+      },
+      "recording": "Recording consent…",
+      "submit": "I understand and consent",
+      "footerNote": "By continuing, you confirm that you are at least 18 years old and agree to ElderLink's data processing as described above.",
+      "errors": {
+        "recordFailed": "Failed to record consent",
+        "generic": "Something went wrong"
+      }
+    }
+  },
+  "provider": {
+    "nav": {
+      "providerBadge": "Provider",
+      "dashboard": "Dashboard",
+      "jobs": "My Jobs",
+      "myProfile": "My profile",
+      "signOut": "Sign out"
+    },
+    "dashboard": {
+      "welcomeBack": "Welcome back, {name}",
+      "scheduleSubtitle": "Here's what's on your schedule.",
+      "verification": {
+        "pendingTitle": "Profile under review",
+        "pendingBody": "Our team is reviewing your documents. You'll start receiving job requests once approved — usually within 24–48 hours.",
+        "rejectedTitle": "Verification not approved",
+        "rejectedReapply": "Please re-upload your documents to reapply."
+      },
+      "stats": {
+        "pending": "Pending",
+        "completed": "Completed",
+        "earned": "Earned"
+      },
+      "activeJobs": "Active jobs",
+      "viewAll": "View all",
+      "noActiveJobs": "No active jobs right now. New bookings will appear here.",
+      "recentlyCompleted": "Recently completed",
+      "status": {
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
+    },
+    "jobs": {
+      "title": "My jobs",
+      "noJobs": "No jobs assigned yet. Check back once a family books your services.",
+      "active": "Active",
+      "past": "Past",
+      "status": {
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "disputed": "Disputed",
+        "refunded": "Refunded"
+      }
+    },
+    "jobDetail": {
+      "backToJobs": "Back to jobs",
+      "defaultServiceName": "Service",
+      "status": {
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "disputed": "Disputed",
+        "refunded": "Refunded"
+      },
+      "durationHours": "{hours}h",
+      "durationMinutes": "{minutes} min",
+      "yourEarnings": "Your earnings",
+      "notesFromFamily": "Notes from family",
+      "chatWithFamily": "Chat with family",
+      "history": "History",
+      "ratingFromFamily": "Rating from family",
+      "yourRating": "Your rating",
+      "rateThisFamily": "Rate this family"
+    },
+    "jobReport": {
+      "back": "Back",
+      "title": "Visit report",
+      "subtitle": "Takes about 2 minutes — fill it while the visit is fresh.",
+      "optional": "(optional)",
+      "mood": {
+        "question": "How was the elder feeling?",
+        "happy": "Good",
+        "neutral": "Okay",
+        "sad": "Concerned"
+      },
+      "summary": {
+        "question": "What did you do during the visit?",
+        "placeholder": "e.g. Accompanied Mr. Sharma on a 30-minute walk around the park. He was in good spirits and chatted about his grandchildren. Helped him with his afternoon medication.",
+        "hint": "The family reads this — write as if you're speaking to them directly."
+      },
+      "vitals": {
+        "question": "Any health observations?",
+        "placeholder": "e.g. Seemed a bit short of breath on the walk. Said knee pain was better than last week."
+      },
+      "followUp": {
+        "question": "Should the family follow up on anything?",
+        "no": "No, all good",
+        "yes": "Yes, follow up",
+        "notesQuestion": "What should the family follow up on?",
+        "notesPlaceholder": "e.g. Mentioned chest discomfort earlier in the day. May need a doctor's visit."
+      },
+      "photos": {
+        "label": "Photos",
+        "optionalHint": "(optional, up to 5)",
+        "hint": "A photo of the elder, the activity, or anything relevant for the family.",
+        "altText": "Photo {index}",
+        "addFirst": "Take or add a photo",
+        "addAnother": "Add another photo"
+      },
+      "errors": {
+        "moodRequired": "Please select how the elder was feeling.",
+        "summaryRequired": "Please write a brief summary.",
+        "submitFailed": "Failed to submit report.",
+        "generic": "Something went wrong. Please try again."
+      },
+      "submitting": "Submitting…",
+      "submit": "Submit report"
+    },
+    "profile": {
+      "verification": {
+        "verified": "Verified",
+        "pending": "Under review",
+        "unverified": "Not yet submitted",
+        "rejected": "Verification rejected"
+      },
+      "ratingSummary": "★ {rating} · {count} reviews",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "saved": "Saved!",
+      "errors": {
+        "saveFailed": "Failed to save.",
+        "generic": "Something went wrong. Please try again."
+      },
+      "bio": {
+        "title": "About you",
+        "placeholder": "Tell families about your experience, specialisations, and approach to care…",
+        "charCount": "{count} characters · minimum 20"
+      },
+      "services": {
+        "title": "Services offered"
+      },
+      "cities": {
+        "title": "Cities served"
+      },
+      "zones": {
+        "title": "Neighbourhoods served",
+        "description": "Select the specific areas you can travel to. Leave all unchecked to serve your entire city."
+      },
+      "documents": {
+        "title": "Documents & verification",
+        "description": "Profile photo and police verification document can only be updated by contacting support.",
+        "photoUploaded": "Photo ✓ uploaded",
+        "photoMissing": "Photo ✗ missing",
+        "policeSubmitted": "Police verification ✓ submitted",
+        "policeNotSubmitted": "Police verification ✗ not submitted"
+      }
+    },
+    "onboarding": {
+      "steps": {
+        "bio": {
+          "title": "Tell families about yourself",
+          "description": "This is what families read before choosing you.",
+          "placeholder": "e.g. I'm a certified caregiver with 5 years of experience supporting elderly patients in Agra. I specialise in companion care, medication management, and gentle exercise. I speak Hindi and English and am known for being patient and warm.",
+          "charCount": "Minimum 20 characters · {count} typed"
+        },
+        "services": {
+          "title": "What services do you offer?",
+          "description": "Select all that apply."
+        },
+        "cities": {
+          "title": "Which cities do you serve?",
+          "description": "You can serve multiple cities if you're willing to travel."
+        },
+        "photo": {
+          "title": "Add your photo",
+          "description": "Families see this when choosing a caregiver. A clear face photo builds trust.",
+          "takePhoto": "Take photo",
+          "chooseFromGallery": "Or choose from gallery",
+          "previewAlt": "Preview"
+        },
+        "verification": {
+          "title": "Police verification",
+          "description": "Required before you can appear in family search results. Upload your police clearance certificate — JPEG, PNG, or PDF.",
+          "uploadPrompt": "Tap to upload document",
+          "uploadHint": "JPEG · PNG · PDF · Max 10MB",
+          "storageNote": "Your document is stored securely and only visible to ElderLink admins for verification."
+        }
+      },
+      "continue": "Continue",
+      "submit": "Submit application",
+      "errors": {
+        "saveFailed": "Failed to save profile.",
+        "photoFailed": "Photo upload failed.",
+        "uploadFailed": "Upload failed.",
+        "generic": "Something went wrong. Please try again."
+      }
+    }
+  },
+  "shared": {
+    "bookingChat": {
+      "emptyState": "No messages yet. Start the conversation.",
+      "placeholder": "Type a message… (Enter to send)",
+      "sendAriaLabel": "Send",
+      "errors": {
+        "sendFailed": "Failed to send message.",
+        "network": "Network error. Please try again."
+      }
+    },
+    "starRating": {
+      "starLabel": "{count, plural, one {# star} other {# stars}}"
+    }
+  }
+}

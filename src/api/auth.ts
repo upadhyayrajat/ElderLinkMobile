@@ -5,7 +5,9 @@ export interface SendOtpResponse {
   message: string;
 }
 
-type AuthUserResponse = Pick<User, "id" | "phone" | "name" | "role"> & { consentGiven: boolean };
+type AuthUserResponse = Pick<User, "id" | "phone" | "name" | "role" | "preferredLocale"> & {
+  consentGiven: boolean;
+};
 
 export interface VerifyOtpResponse {
   status: "ok" | "new_user";
@@ -33,8 +35,8 @@ export const authApi = {
   verifyOtp: (phone: string, otp: string) =>
     api.post<VerifyOtpResponse>("/api/auth/mobile/verify-otp", { phone, otp }),
 
-  register: (phone: string, name: string, role: "family" | "provider") =>
-    api.post<RegisterResponse>("/api/auth/mobile/register", { phone, name, role }),
+  register: (phone: string, name: string, role: "family" | "provider", preferredLocale?: string) =>
+    api.post<RegisterResponse>("/api/auth/mobile/register", { phone, name, role, preferredLocale }),
 
   // Explicit refresh, used right after granting consent so the new access
   // token actually carries an up-to-date consentGiven claim (the 401

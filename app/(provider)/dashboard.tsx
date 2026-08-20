@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/src/store/auth";
 import { bookingsApi } from "@/src/api/bookings";
 import type { Booking } from "@/src/types";
@@ -51,6 +52,7 @@ function JobCard({ booking }: { booking: Booking }) {
 export default function ProviderDashboard() {
   const { user } = useAuthStore();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const { data: bookings, isLoading } = useQuery({
     queryKey: ["provider-bookings"],
@@ -64,35 +66,35 @@ export default function ProviderDashboard() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Hello, {user?.name?.split(" ")[0]} 👋</Text>
-      <Text style={styles.sub}>Your job dashboard</Text>
+      <Text style={styles.greeting}>{t("provider.dashboard.welcomeBack", { name: user?.name?.split(" ")[0] })} 👋</Text>
+      <Text style={styles.sub}>{t("provider.dashboard.scheduleSubtitle")}</Text>
 
       {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Clock size={18} color="#F59E0B" />
           <Text style={styles.statValue}>{pendingCount}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>{t("provider.dashboard.stats.pending")}</Text>
         </View>
         <View style={styles.statCard}>
           <CheckCircle size={18} color="#10B981" />
           <Text style={styles.statValue}>{completed.length}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
+          <Text style={styles.statLabel}>{t("provider.dashboard.stats.completed")}</Text>
         </View>
         <View style={styles.statCard}>
           <IndianRupee size={18} color="#006FFD" />
           <Text style={styles.statValue}>{formatPaise(earnings)}</Text>
-          <Text style={styles.statLabel}>Earned</Text>
+          <Text style={styles.statLabel}>{t("provider.dashboard.stats.earned")}</Text>
         </View>
       </View>
 
       {/* Active jobs */}
-      <Text style={styles.sectionTitle}>Active jobs ({active.length})</Text>
+      <Text style={styles.sectionTitle}>{t("provider.dashboard.activeJobs")} ({active.length})</Text>
       {isLoading ? (
         <ActivityIndicator color="#006FFD" style={{ marginTop: 20 }} />
       ) : active.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No active jobs. New bookings will appear here.</Text>
+          <Text style={styles.emptyText}>{t("provider.dashboard.noActiveJobs")}</Text>
         </View>
       ) : (
         active.map((b) => <JobCard key={b.id} booking={b} />)

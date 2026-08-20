@@ -4,7 +4,7 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/src/api/client";
-import type { User, UserRole } from "@/src/types";
+import type { User, UserRole, SupportedLocale } from "@/src/types";
 
 export interface AuthUser {
   id: string;
@@ -12,6 +12,7 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   consentGiven: boolean;
+  preferredLocale: SupportedLocale;
 }
 
 interface AuthState {

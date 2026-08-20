@@ -9,7 +9,7 @@ import { bookingsApi } from "@/src/api/bookings";
 import { serviceReportsApi } from "@/src/api/service-reports";
 import { reviewsApi } from "@/src/api/reviews";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart, Star, CheckCircle2 } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart, Star, CheckCircle2, MessageCircle } from "lucide-react-native";
 
 function StarRating({ rating, onChange }: { rating: number; onChange: (n: number) => void }) {
   return (
@@ -174,6 +174,16 @@ export default function BookingDetailScreen() {
         </Text>
       </View>
 
+      {/* Chat */}
+      <TouchableOpacity
+        style={styles.chatBtn}
+        onPress={() => router.push(`/(family)/bookings/chat/${id}` as any)}
+        activeOpacity={0.85}
+      >
+        <MessageCircle size={18} color="#006FFD" />
+        <Text style={styles.chatBtnText}>Message Provider</Text>
+      </TouchableOpacity>
+
       {/* Service + date */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Service Details</Text>
@@ -311,6 +321,8 @@ const styles = StyleSheet.create({
   statusBadge: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginBottom: 20 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: 13, fontWeight: "700" },
+  chatBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#006FFD", borderRadius: 14, paddingVertical: 12, marginBottom: 14 },
+  chatBtnText: { fontSize: 14, fontWeight: "700", color: "#006FFD" },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 18, marginBottom: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
   cardTitle: { fontSize: 13, fontWeight: "700", color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },

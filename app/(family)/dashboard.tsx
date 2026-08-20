@@ -5,6 +5,7 @@ import { useAuthStore } from "@/src/store/auth";
 import { bookingsApi } from "@/src/api/bookings";
 import { parentsApi } from "@/src/api/parents";
 import type { Booking } from "@/src/types";
+import { LanguageSwitcherButton } from "@/src/components/LanguagePicker";
 
 const STATUS_COLOR: Record<string, string> = {
   pending:     "#F59E0B",
@@ -65,8 +66,13 @@ export default function FamilyDashboard() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Hello, {user?.name?.split(" ")[0]} 👋</Text>
-      <Text style={styles.sub}>Here's what's happening</Text>
+      <View style={styles.topRow}>
+        <View>
+          <Text style={styles.greeting}>Hello, {user?.name?.split(" ")[0]} 👋</Text>
+          <Text style={styles.sub}>Here's what's happening</Text>
+        </View>
+        <LanguageSwitcherButton />
+      </View>
 
       {/* Quick actions */}
       <View style={styles.actionRow}>
@@ -118,6 +124,7 @@ export default function FamilyDashboard() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { padding: 20, paddingTop: 60 },
+  topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   greeting: { fontSize: 24, fontWeight: "800", color: "#1A1A2E" },
   sub: { fontSize: 15, color: "#6B7280", marginTop: 2, marginBottom: 28 },
   actionRow: { flexDirection: "row", gap: 12, marginBottom: 28 },

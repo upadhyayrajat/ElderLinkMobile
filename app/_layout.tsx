@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/src/store/auth";
+import { bootstrapLocale } from "@/src/i18n";
+import { hasSeenOnboarding } from "@/src/onboarding";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,21 +14,28 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const { loadSession } = useAuthStore();
+  const [localeReady, setLocaleReady] = useState(false);
+  const [seenOnboarding, setSeenOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadSession();
+    bootstrapLocale().finally(() => setLocaleReady(true));
+    hasSeenOnboarding().then(setSeenOnboarding);
   }, []);
+
+  if (!localeReady || seenOnboarding === null) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <AuthGate />
+      <AuthGate seenOnboarding={seenOnboarding} />
     </QueryClientProvider>
   );
 }
 
-// Redirects unauthenticated users to (auth) and authenticated users away from it.
-function AuthGate() {
+// Redirects unauthenticated users to onboarding (first launch) or (auth)
+// (repeat launches), and authenticated users away from (auth).
+function AuthGate({ seenOnboarding }: { seenOnboarding: boolean }) {
   const { user, isLoaded } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
@@ -35,9 +44,10 @@ function AuthGate() {
     if (!isLoaded) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const onOnboarding = segments[0] === "onboarding";
 
-    if (!user && !inAuthGroup) {
-      router.replace("/(auth)/login");
+    if (!user && !inAuthGroup && !onOnboarding) {
+      router.replace(seenOnboarding ? "/(auth)/login" : "/onboarding");
     } else if (user && inAuthGroup) {
       if (user.role !== "provider" && user.role !== "family") {
         // "company", "admin", or any future role with no mobile experience yet.
@@ -52,10 +62,11 @@ function AuthGate() {
         router.replace("/(family)/dashboard");
       }
     }
-  }, [user, isLoaded, segments]);
+  }, [user, isLoaded, segments, seenOnboarding]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(family)" />
       <Stack.Screen name="(provider)" />

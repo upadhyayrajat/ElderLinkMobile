@@ -4,12 +4,17 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { authApi } from "@/src/api/auth";
 import { useAuthStore } from "@/src/store/auth";
+import { LanguageSwitcherButton } from "@/src/components/LanguagePicker";
+import { setLocale, consumePreLoginLocaleTouched, i18next } from "@/src/i18n";
+import type { SupportedLocale } from "@/src/types";
 
 export default function VerifyOtpScreen() {
   const { phone } = useLocalSearchParams<{ phone: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const { setSession } = useAuthStore();
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -54,10 +59,17 @@ export default function VerifyOtpScreen() {
       }
       if (data.accessToken && data.refreshToken && data.user) {
         await setSession(data.user, data.accessToken, data.refreshToken);
+        // Login tie-break: an explicit pre-login language pick wins and gets
+        // pushed to the server; otherwise adopt the server's saved preference.
+        if (consumePreLoginLocaleTouched()) {
+          await setLocale(i18next.language as SupportedLocale, { syncToServer: true });
+        } else {
+          await setLocale(data.user.preferredLocale, { syncToServer: false });
+        }
         // AuthGate in _layout.tsx handles the redirect
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? "Verification failed.";
+      const msg = err?.response?.data?.error ?? t("auth.verifyOtp.errors.verifyFailed");
       Alert.alert("Error", msg);
       setOtp(["", "", "", "", "", ""]);
       inputs.current[0]?.focus();
@@ -84,13 +96,16 @@ export default function VerifyOtpScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        <View style={styles.topRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+            <Text style={styles.backText}>← {t("auth.verifyOtp.changeNumber")}</Text>
+          </TouchableOpacity>
+          <LanguageSwitcherButton />
+        </View>
 
-        <Text style={styles.title}>Enter OTP</Text>
+        <Text style={styles.title}>{t("auth.verifyOtp.title")}</Text>
         <Text style={styles.subtitle}>
-          Sent to <Text style={styles.phone}>{phone}</Text>
+          {t("auth.verifyOtp.descriptionPrefix")} <Text style={styles.phone}>{phone}</Text>
         </Text>
 
         <View style={styles.otpRow}>
@@ -117,13 +132,13 @@ export default function VerifyOtpScreen() {
         >
           {loading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.btnText}>Verify</Text>
+            : <Text style={styles.btnText}>{t("auth.verifyOtp.submit")}</Text>
           }
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleResend} disabled={resendSeconds > 0}>
           <Text style={[styles.resend, resendSeconds > 0 && styles.resendDisabled]}>
-            {resendSeconds > 0 ? `Resend OTP in ${resendSeconds}s` : "Resend OTP"}
+            {resendSeconds > 0 ? `Resend OTP in ${resendSeconds}s` : t("auth.verifyOtp.resendOtp")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -134,7 +149,8 @@ export default function VerifyOtpScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   inner: { flex: 1, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 },
-  back: { marginBottom: 32 },
+  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 32 },
+  back: {},
   backText: { fontSize: 16, color: "#006FFD" },
   title: { fontSize: 24, fontWeight: "700", color: "#1A1A2E" },
   subtitle: { fontSize: 15, color: "#6B7280", marginTop: 6, marginBottom: 32 },
