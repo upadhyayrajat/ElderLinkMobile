@@ -8,6 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingsApi } from "@/src/api/bookings";
 import { parentsApi } from "@/src/api/parents";
 import { servicesApi } from "@/src/api/services";
+import { DateField } from "@/src/components/DateField";
+import { TimeField } from "@/src/components/TimeField";
 import { ArrowLeft, Calendar, User, FileText, ChevronDown } from "lucide-react-native";
 
 function Field({
@@ -77,8 +79,8 @@ export default function NewBookingScreen() {
   const mutation = useMutation({
     mutationFn: () => {
       if (!selectedParentId) throw new Error("Select a parent profile");
-      if (!scheduledDate.match(/^\d{4}-\d{2}-\d{2}$/)) throw new Error("Enter date as YYYY-MM-DD");
-      if (!scheduledTime.match(/^\d{2}:\d{2}$/)) throw new Error("Enter time as HH:MM");
+      if (!scheduledDate) throw new Error("Select a date");
+      if (!scheduledTime) throw new Error("Select a time");
 
       const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}:00`);
       if (isNaN(scheduledAt.getTime())) throw new Error("Invalid date or time");
@@ -165,19 +167,18 @@ export default function NewBookingScreen() {
 
         {/* Schedule */}
         <Text style={styles.sectionTitle}>When?</Text>
-        <Field
+        <DateField
           label="Date"
           value={scheduledDate}
-          onChangeText={setScheduledDate}
-          placeholder="2026-07-15"
-          hint="Format: YYYY-MM-DD"
+          onChange={setScheduledDate}
+          minimumDate={new Date()}
+          required
         />
-        <Field
+        <TimeField
           label="Time"
           value={scheduledTime}
-          onChangeText={setScheduledTime}
-          placeholder="10:00"
-          hint="24-hour format, e.g. 10:00 or 14:30"
+          onChange={setScheduledTime}
+          required
         />
 
         {/* Notes */}

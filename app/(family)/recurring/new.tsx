@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { recurringBookingsApi } from "@/src/api/recurring-bookings";
 import { parentsApi } from "@/src/api/parents";
 import { servicesApi } from "@/src/api/services";
-import { Field } from "@/src/components/Field";
+import { DateField, parseDateString } from "@/src/components/DateField";
+import { TimeField } from "@/src/components/TimeField";
 import { TopBar } from "@/src/components/TopBar";
 import type { RecurrenceFrequency } from "@/src/types";
 
@@ -28,9 +29,6 @@ const DAYS: { value: number; label: string }[] = [
   { value: 5, label: "F" },
   { value: 6, label: "S" },
 ];
-
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_REGEX = /^\d{2}:\d{2}$/;
 
 export default function NewRecurringBookingScreen() {
   const { serviceTypeId, serviceName, providerUserId } = useLocalSearchParams<{
@@ -72,9 +70,8 @@ export default function NewRecurringBookingScreen() {
   const mutation = useMutation({
     mutationFn: () => {
       if (!selectedParentId) throw new Error("Select a parent profile");
-      if (!TIME_REGEX.test(timeOfDay)) throw new Error("Enter time as HH:MM");
-      if (!DATE_REGEX.test(startDate)) throw new Error("Enter start date as YYYY-MM-DD");
-      if (isNaN(new Date(startDate).getTime())) throw new Error("Invalid start date");
+      if (!timeOfDay) throw new Error("Select a time");
+      if (!startDate) throw new Error("Select a start date");
 
       // Compare as YYYY-MM-DD strings (not Date objects) — they sort correctly
       // lexically, and this sidesteps the timezone bug where new Date("YYYY-MM-DD")
@@ -84,10 +81,8 @@ export default function NewRecurringBookingScreen() {
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       if (startDate < todayStr) throw new Error("Start date can't be in the past");
 
-      if (endDate.trim()) {
-        if (!DATE_REGEX.test(endDate)) throw new Error("Enter end date as YYYY-MM-DD");
-        if (isNaN(new Date(endDate).getTime())) throw new Error("Invalid end date");
-        if (endDate < startDate) throw new Error("End date must be on or after the start date");
+      if (endDate && endDate < startDate) {
+        throw new Error("End date must be on or after the start date");
       }
 
       return recurringBookingsApi.create({
@@ -210,28 +205,26 @@ export default function NewRecurringBookingScreen() {
 
         {/* Schedule */}
         <Text style={styles.sectionTitle}>When?</Text>
-        <Field
+        <TimeField
           label="Time"
           value={timeOfDay}
-          onChangeText={setTimeOfDay}
-          placeholder="10:00"
-          hint="24-hour format, e.g. 10:00 or 14:30"
+          onChange={setTimeOfDay}
           required
         />
-        <Field
+        <DateField
           label="Start date"
           value={startDate}
-          onChangeText={setStartDate}
-          placeholder="2026-07-15"
-          hint="Format: YYYY-MM-DD"
+          onChange={setStartDate}
+          minimumDate={new Date()}
           required
         />
-        <Field
+        <DateField
           label="End date"
           value={endDate}
-          onChangeText={setEndDate}
-          placeholder="2026-12-15"
-          hint="Optional — leave blank for an ongoing booking"
+          onChange={setEndDate}
+          placeholder="Optional — ongoing"
+          hint="Leave unset for an ongoing booking"
+          minimumDate={startDate ? parseDateString(startDate) : new Date()}
         />
 
         {/* Pricing */}

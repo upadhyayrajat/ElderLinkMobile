@@ -619,6 +619,97 @@ earlier passes treated seed data.
      (Sanjay Kapoor, Neha Singh) rendered — the exact scenario the user
      originally reported as broken. Re-confirmed after the `AuthGate` fix
      that the flow still works end-to-end.
+9. ✅ **Native date pickers** (2026-08-21) — the 3 date fields in the app
+   (`app/(family)/bookings/new.tsx`'s booking date;
+   `app/(family)/recurring/new.tsx`'s start/end date) were free-text
+   `TextInput`s expecting a hand-typed `"YYYY-MM-DD"` string, validated by
+   regex — the same risky pattern already fixed for city search.
+   - New dependency: `@react-native-community/datetimepicker` (installed
+     with `--force` due to the same upstream `@radix-ui`/`expo-router` peer
+     conflict class already worked around all session — no packages
+     removed, confirmed via `package.json` diff).
+   - New `src/components/DateField.tsx` — matches the existing `Field`
+     component's visual style, opens the native date picker on tap
+     (Android: system modal dialog; iOS: inline calendar inside the
+     existing `BottomSheet` with a Done button), and formats the
+     selection back into the same local-time `"YYYY-MM-DD"` string the
+     existing state/validation already expects — no downstream logic
+     changed. Exports `parseDateString` (local-time-safe, avoiding the
+     UTC-midnight timezone bug `recurring/new.tsx`'s own comments already
+     warned about) for reuse where a screen needs to convert a stored date
+     string back into a `Date` (e.g. the end-date field's dynamic
+     `minimumDate`).
+   - Replaced the 3 fields with `DateField`, using `minimumDate={new
+     Date()}` (booking date, start date) or `minimumDate={parseDateString(startDate)}`
+     (end date, dynamically tracking the chosen start date) — this let the
+     manual regex/`isNaN` format-validation in both screens' mutation
+     functions be deleted (a valid format is now structurally guaranteed),
+     while the semantic checks (can't be in the past, end ≥ start) stay as
+     a defense-in-depth safety net.
+   - Verified on the Android emulator against local Postgres: the booking
+     date picker defaults to today, correctly disables past dates, and a
+     full booking submitted through it end-to-end shows the exact picked
+     date/time on the confirmation screen (then cancelled to clean up test
+     data); the recurring-booking start and end date pickers both open and
+     correctly gate dates before their respective minimums.
+   - **Time-field follow-up (2026-08-21)**: the same 2 screens' "Time"
+     fields had the identical free-text `"HH:MM"` problem, with an added
+     real risk the user flagged — some people don't think in 24-hour time,
+     so a hand-typed "2:30" for what someone means as 2:30pm silently
+     becomes 02:30am, a wrong-time booking with no validation error to
+     catch it. New `src/components/TimeField.tsx` (same pattern as
+     `DateField`) uses the native time picker, which follows the device's
+     own 12-hour/24-hour setting — so a user who thinks in AM/PM gets an
+     explicit AM/PM control rather than being forced to reason in 24-hour
+     time. The field always *displays* the chosen value as 12-hour with
+     AM/PM (e.g. "2:37 PM"), regardless of the device's own display
+     setting, so what's shown is never ambiguous either way. Storage
+     format (`"HH:MM"` 24-hour) is unchanged, so no downstream logic
+     needed to change beyond deleting the now-redundant regex checks (the
+     picker structurally guarantees a valid value). `recurring/new.tsx`'s
+     local `Field` import became entirely unused after this and was
+     removed. Verified on the Android emulator: the native picker shows a
+     clock face with an explicit AM/PM toggle, selecting 2:37 PM round-
+     tripped correctly and displayed as "2:37 PM" in the field.
+10. ✅ **Bottom tab bar decluttered** (2026-08-24) — the user described the
+    bottom tab bar as visually cluttered (14 truncated icons on the family
+    side, similarly on provider) and proposed a hamburger menu for the
+    overflow. Investigation found this wasn't really an information-
+    architecture problem: `app/(family)/_layout.tsx` and
+    `app/(provider)/_layout.tsx` each only ever *intended* 4 and 3 tabs
+    respectively (Home/Parents/Bookings/SOS,
+    Dashboard/My Jobs/Profile) — both already clean, idiomatic counts. The
+    clutter was a real Expo Router bug: none of the sub-directories
+    (`bookings/`, `parents/`, `providers/`, `recurring/`, `jobs/`) have
+    their own `_layout.tsx`, so every detail/form screen inside them
+    (`bookings/new`, `bookings/[id]`, `bookings/chat/[id]`, `parents/new`,
+    `parents/[id]`, `providers/index`, `providers/[id]`,
+    `recurring/index`, `recurring/new`, `jobs/[id]`, `jobs/chat/[id]`) was
+    being auto-registered by `<Tabs>` as its own separate bottom-tab
+    button, since nothing told it not to.
+    - Fixed by adding an explicit `<Tabs.Screen name="..." options={{
+      href: null }} />` entry for each of those 11 routes across both
+      layout files — the standard Expo Router mechanism for keeping a
+      route fully navigable (still reachable via `router.push`) while
+      excluding it from the tab bar.
+    - Recommended against the hamburger menu itself as the wrong pattern
+      for a bottom-tab mobile app even as a hypothetical fallback — hidden
+      slide-out menus have a well-documented discoverability cost, and the
+      idiomatic mobile pattern for genuine tab overflow (past ~5) is a
+      "More" tab (a list screen), not a drawer. Moot here since fixing the
+      routing bug already brought both bars down to their intended,
+      already-reasonable counts.
+    - Verified end-to-end on the Android emulator, both roles: logged in
+      as an existing family user (Mayank Goyal) — tab bar now shows
+      exactly Home/Parents/Bookings/SOS with full labels, no truncation;
+      drilled into a booking detail, and through
+      Book service → provider list → provider profile (all previously
+      auto-added tabs) — confirmed each remains fully navigable as a
+      pushed screen with the tab bar unchanged and correctly showing no
+      active tab. Logged in as an existing provider user (Priya Sharma) —
+      tab bar shows exactly Dashboard/My Jobs/Profile; drilled into a job
+      detail (including the "Chat with family" entry point) with the same
+      confirmation.
 
 Lower priority, unscheduled:
 - Provider ↔ company linking (accept/request)

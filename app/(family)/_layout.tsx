@@ -25,6 +25,8 @@ export default function FamilyTabLayout() {
           tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
+      <Tabs.Screen name="parents/new" options={{ href: null }} />
+      <Tabs.Screen name="parents/[id]" options={{ href: null }} />
       <Tabs.Screen
         name="bookings"
         options={{
@@ -32,6 +34,9 @@ export default function FamilyTabLayout() {
           tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
         }}
       />
+      <Tabs.Screen name="bookings/new" options={{ href: null }} />
+      <Tabs.Screen name="bookings/[id]" options={{ href: null }} />
+      <Tabs.Screen name="bookings/chat/[id]" options={{ href: null }} />
       <Tabs.Screen
         name="sos"
         options={{
@@ -41,6 +46,13 @@ export default function FamilyTabLayout() {
           tabBarInactiveTintColor: "#FCA5A5",
         }}
       />
+      {/* Reached via push navigation from dashboard/provider screens, not
+          top-level destinations — hidden from the tab bar but still routable. */}
+      <Tabs.Screen name="services/index" options={{ href: null }} />
+      <Tabs.Screen name="providers/index" options={{ href: null }} />
+      <Tabs.Screen name="providers/[id]" options={{ href: null }} />
+      <Tabs.Screen name="recurring/index" options={{ href: null }} />
+      <Tabs.Screen name="recurring/new" options={{ href: null }} />
     </Tabs>
   );
 }

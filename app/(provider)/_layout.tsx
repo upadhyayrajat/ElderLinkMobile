@@ -25,6 +25,8 @@ export default function ProviderTabLayout() {
           tabBarIcon: ({ color, size }) => <Briefcase color={color} size={size} />,
         }}
       />
+      <Tabs.Screen name="jobs/[id]" options={{ href: null }} />
+      <Tabs.Screen name="jobs/chat/[id]" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{
