@@ -5,11 +5,13 @@ import {
 import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as WebBrowser from "expo-web-browser";
 import { bookingsApi } from "@/src/api/bookings";
 import { serviceReportsApi } from "@/src/api/service-reports";
 import { reviewsApi } from "@/src/api/reviews";
+import { usePayment, useCreatePaymentLink } from "@/src/hooks/usePayments";
 import type { BookingStatus } from "@/src/types";
-import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart, Star, CheckCircle2, MessageCircle } from "lucide-react-native";
+import { ArrowLeft, Calendar, Clock, User, DollarSign, Heart, Star, CheckCircle2, MessageCircle, CreditCard } from "lucide-react-native";
 
 function StarRating({ rating, onChange }: { rating: number; onChange: (n: number) => void }) {
   return (
@@ -95,6 +97,24 @@ export default function BookingDetailScreen() {
     queryFn: () => serviceReportsApi.getForBooking(id).then((r) => r.data.data),
     enabled: !!id && booking?.status === "completed",
   });
+
+  const { data: payment } = usePayment(id);
+  const createPaymentLink = useCreatePaymentLink(id);
+  const [payError, setPayError] = useState("");
+
+  const handlePayNow = async () => {
+    setPayError("");
+    try {
+      const { url } = await createPaymentLink.mutateAsync();
+      const result = await WebBrowser.openAuthSessionAsync(url, "elderlink://payment-callback");
+      if (result.type === "success") {
+        queryClient.invalidateQueries({ queryKey: ["payment", id] });
+        queryClient.invalidateQueries({ queryKey: ["booking", id] });
+      }
+    } catch (err: any) {
+      setPayError(err?.response?.data?.error ?? "Could not start payment. Please try again.");
+    }
+  };
 
   const cancelMutation = useMutation({
     mutationFn: () => bookingsApi.cancelAsFamily(id),
@@ -215,6 +235,41 @@ export default function BookingDetailScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Payment */}
+      {payment && payment.status !== "captured" && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Payment</Text>
+          <Text style={styles.notesText}>
+            {payment.status === "failed"
+              ? "Your last payment attempt didn't go through. Please try again."
+              : "Payment will be collected now that your caregiver has confirmed the booking."}
+          </Text>
+          {payError ? <Text style={styles.payErrorText}>{payError}</Text> : null}
+          <TouchableOpacity
+            style={[styles.payNowBtn, createPaymentLink.isPending && styles.btnDisabled]}
+            onPress={handlePayNow}
+            disabled={createPaymentLink.isPending}
+            activeOpacity={0.85}
+          >
+            {createPaymentLink.isPending
+              ? <ActivityIndicator color="#fff" size="small" />
+              : (
+                <>
+                  <CreditCard size={16} color="#fff" />
+                  <Text style={styles.payNowBtnText}>Pay Now</Text>
+                </>
+              )
+            }
+          </TouchableOpacity>
+        </View>
+      )}
+      {payment?.status === "captured" && (
+        <View style={styles.paidBanner}>
+          <CheckCircle2 size={18} color="#10B981" />
+          <Text style={styles.paidBannerText}>Payment received</Text>
+        </View>
+      )}
 
       {/* Notes */}
       {booking.notes ? (
@@ -347,4 +402,9 @@ const styles = StyleSheet.create({
   reviewInput: { backgroundColor: "#F9FAFB", borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1A1A2E", minHeight: 70, marginTop: 16, textAlignVertical: "top" },
   submitReviewBtn: { backgroundColor: "#006FFD", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginTop: 16 },
   submitReviewBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  payErrorText: { fontSize: 13, color: "#EF4444", marginTop: 8 },
+  payNowBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#006FFD", borderRadius: 14, paddingVertical: 14, marginTop: 14 },
+  payNowBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  paidBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 14, padding: 16, marginBottom: 14 },
+  paidBannerText: { fontSize: 14, fontWeight: "600", color: "#15803D" },
 });

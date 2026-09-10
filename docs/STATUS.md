@@ -6,7 +6,7 @@ audit and reasoning behind priorities, see `ROADMAP.md`.
 
 Legend: ✅ Done & verified · 🚧 Built, not yet verified · ⬜ Not started
 
-Last updated: 2026-08-20
+Last updated: 2026-09-10
 
 ## Testing environment
 
@@ -711,6 +711,68 @@ earlier passes treated seed data.
       detail (including the "Chat with family" entry point) with the same
       confirmation.
 
+11. ✅ **Razorpay payments** (2026-09-10) — the production-readiness audit
+    found payments entirely unbuilt: `razorpay` was an installed but unused
+    dependency, and bookings recorded an amount with nobody ever charged.
+    Built end-to-end across both repos:
+    - **Design decisions** (confirmed with the user before building):
+      payment is **non-blocking** — `booking.status` stays fully
+      independent of `payment.status`, so a provider can start/complete a
+      job even if payment hasn't captured yet, matching the pre-existing
+      UI copy ("Payment will be collected when your caregiver confirms the
+      booking") and the `payments.ts` repo's own header comment. And
+      checkout uses a **hosted web page**, not a native SDK
+      (`react-native-razorpay`), specifically to avoid forcing this app off
+      Expo Go and onto a custom EAS dev build — the mobile app has zero
+      native modules today and that's deliberate.
+    - **Web** (`../ElderLink`): order creation is hooked into the existing
+      `pending→confirmed` transition
+      (`src/app/api/provider/bookings/[id]/status/route.ts`) — wrapped in
+      try/catch so a Razorpay outage never blocks the confirm action
+      itself. New routes: `GET/POST /api/family/bookings/[id]/payment(/link)`
+      (mints a short-lived signed token — no shared cookie/bearer session
+      needed since checkout opens in an external browser context), the
+      hosted `src/app/pay/[orderId]/page.tsx` checkout page (Razorpay
+      Checkout.js), its `/verify` endpoint (optimistic fast-path signature
+      check), and `POST /api/webhooks/razorpay` (the durable source of
+      truth — first raw-body/signature-verification route in this repo).
+      Signature verification uses the `razorpay` SDK's own
+      `validateWebhookSignature`/`validatePaymentVerification` utilities,
+      not hand-rolled crypto.
+    - **Mobile**: `expo-web-browser` installed (pure JS, confirmed
+      Expo-Go-compatible — additive `package.json` diff, one auto-registered
+      plugin line in `app.json`). `src/api/payments.ts` +
+      `src/hooks/usePayments.ts`, and a "Pay Now" card in
+      `app/(family)/bookings/[id].tsx` that opens the checkout link via
+      `WebBrowser.openAuthSessionAsync`, returning through the
+      already-registered `elderlink://` scheme.
+    - **Verified end-to-end with real Razorpay test-mode API calls** (not
+      mocked): created a booking (Mayank Goyal → Priya Sharma, Companion
+      Walk, ₹150) against a local Postgres + web backend, confirmed it as
+      the provider — confirmed a **real** order was created on Razorpay's
+      servers (`order_TaMVsD3m7mKzP3`) and a `payments` row inserted
+      (`status: created`). Generated a payment link via the API, opened the
+      hosted checkout page in a real browser, completed payment with
+      Razorpay's documented domestic test card (`4386 2894 0766 0153` +
+      test OTP `1111`) — confirmed via direct DB query and the family API
+      that the payment flipped to `status: captured` with a real
+      `razorpay_payment_id` (`pay_TaMcQmsIo1Nsl1`).
+    - **Not verified, flagged explicitly rather than silently claimed
+      covered**: the webhook path (`/api/webhooks/razorpay`) needs a public
+      HTTPS URL to register with Razorpay, which this local machine doesn't
+      have — the capture above went through the client-side `/verify`
+      fast-path, not the webhook. Needs `ngrok`/Razorpay's webhook-forwarding
+      CLI locally, or verification against the QA deployment, before
+      relying on the webhook as the durable source of truth in production.
+      The payment-failure path (`payments.status → failed`) was not
+      separately click-tested — code review gives high confidence (same
+      `update()` call, symmetric to the capture path) but isn't verified
+      end-to-end.
+    - `RAZORPAY_WEBHOOK_SECRET` is still a placeholder in both local
+      `.env.local` and Vercel — needs a real webhook registered in the
+      Razorpay dashboard (pointing at a real deployed URL) before it can be
+      filled in.
+
 Lower priority, unscheduled:
 - Provider ↔ company linking (accept/request)
 - Company-role UX (currently silently routed into the family UI — a
@@ -719,8 +781,9 @@ Lower priority, unscheduled:
 ## Explicitly out of scope for this app
 
 Admin portal, company portal, provider onboarding/document upload,
-subscription plan management, Razorpay payments (not built in the web app
-either yet), Terraform/infra — all web-only by design per `CLAUDE.md`.
+subscription plan management, Terraform/infra — all web-only by design per
+`CLAUDE.md`. (Razorpay payments were previously listed here as "not built in
+the web app either" — that's no longer true, see item 11 above.)
 
 ## Testing infrastructure
 
